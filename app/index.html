@@ -1,0 +1,1425 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Spectra - Spectral Sequencer</title>
+
+	<meta name="author" content="Patrik Herman">
+
+	<meta name="theme-color" content="#1a1a1a">
+	<meta name="apple-mobile-web-app-capable" content="yes">
+	<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+	<link rel="icon" type="image/png" sizes="32x32" href="./src/i/favicon-32x32.png">
+	<link rel="icon" type="image/png" sizes="16x16" href="./src/i/favicon-16x16.png">
+	<link rel="apple-touch-icon" sizes="180x180" href="./src/i/apple-touch-icon.png">
+	<link rel="manifest" href="./src/i/site.webmanifest">
+	<link rel="stylesheet" href="./src/css/font-awesome.min.css">
+	<link rel="stylesheet" href="./src/css/local-fonts.css">
+	<link rel="stylesheet" type="text/css" href="./src/css/specpoly.css">
+	<link rel="stylesheet" type="text/css" href="./src/css/timeline.css">
+
+
+	<link rel="stylesheet" type="text/css" href="./src/css/setup.css">
+	<link rel="stylesheet" type="text/css" href="./src/css/spectra-compact.css">
+	<style>
+	.audio-drop-overlay{position:absolute;top:0;left:0;right:0;bottom:0;background:#252525;border:1px solid #404040;z-index:100;display:flex;align-items:center;justify-content:center;pointer-events:none}
+	.audio-drop-overlay-text{color:#8e8e8e;font-size:12px}
+	.audio-drop-modal-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:#050505;z-index:10000;display:flex;align-items:center;justify-content:center}
+	.audio-drop-modal{background:#222;color:#ccc;padding:20px 24px;min-width:520px;max-width:600px;position:relative;max-height:90vh;overflow-y:auto;border:1px solid #444}
+	.audio-drop-modal .close{position:absolute;top:8px;right:12px;cursor:pointer;font-size:15px;color:#888}
+	.audio-drop-modal .close:hover{color:#fff}
+	.audio-drop-modal h3{margin:0 0 12px;color:#fff;font-size:15px}
+	.audio-drop-filename{color:#888;font-size:12px;margin-bottom:10px}
+	.audio-drop-waveform-wrap,.audio-drop-spectrum-wrap{width:100%;margin:6px 0}
+	.audio-drop-waveform,.audio-drop-spectrum{width:100%;display:block;cursor:crosshair;border:1px solid #222}
+	.audio-drop-range-display{font-size:12px;color:#888;margin-bottom:6px}
+	.audio-drop-controls{margin:10px 0}
+	.audio-drop-row{display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:12px}
+	.audio-drop-row .param-label{min-width:110px;color:#aaa}
+	.audio-drop-row select,.audio-drop-row input[type=number]{background:#1a1a1a;color:#ccc;border:1px solid #444;padding:3px 6px;font-size:12px}
+	.audio-drop-row input[type=number]{width:60px}
+	.audio-drop-row input[type=range]{flex:1;max-width:150px}
+	.audio-drop-threshold-val{color:#888;font-size:12px;min-width:40px}
+	.audio-drop-status{font-size:12px;margin:8px 0;min-height:16px}
+	.audio-drop-actions{display:flex;gap:10px;margin-top:10px}
+	.audio-drop-actions input[type=button]{background:#2561c1;color:#fff;border:none;padding:6px 16px;cursor:pointer;font-size:12px}
+	.audio-drop-actions input[type=button]:hover{background:#3071d1}
+	.audio-drop-actions input[type=button]:disabled{background:#444;color:#888;cursor:default}
+	</style>
+</head>
+<body oncontextmenu="return false;">
+<div class="mobile-fallback" data-nosnippet style="display: none;">
+	<h1>Spectra</h1>
+	<p class="fallback-message">Spectra requires a desktop browser with keyboard and mouse.</p>
+	<p style="color: #666; font-size: 12px;" class="fallback-submessage">Please visit on a computer to start creating.</p>
+</div>
+<script src="./src/js/app-init.js"></script>
+
+<div id="electron-titlebar">
+	<div class="titlebar-drag">
+		<div class="titlebar-title-group">
+			<img class="titlebar-logo" src="./src/i/favicon-32x32.png" alt="">
+			<span class="titlebar-title">Spectra</span>
+		</div>
+	</div>
+	<div class="titlebar-controls">
+		<button class="titlebar-btn" id="titlebar-minimize"><svg width="10" height="10" viewBox="0 0 10 10"><rect y="4.5" width="10" height="1" fill="currentColor"/></svg></button>
+		<button class="titlebar-btn" id="titlebar-maximize"><svg width="10" height="10"><rect width="10" height="10" fill="none" stroke="currentColor" stroke-width="1"/></svg></button>
+		<button class="titlebar-btn titlebar-close" id="titlebar-close"><svg width="10" height="10"><line x1="0" y1="0" x2="10" y2="10" stroke="currentColor" stroke-width="1.5"/><line x1="10" y1="0" x2="0" y2="10" stroke="currentColor" stroke-width="1.5"/></svg></button>
+	</div>
+</div>
+<input type="file" class="load-midi" accept=".mid,.midi,.json,.spectra,.spectra.json" style="display:none">
+<div class="infoSection helpSection hidden">
+	<div class="infoPane help-pane">
+		<div class="close">&#10006;</div>
+
+		<div class="help-header">
+			<h2>Keyboard & Mouse Reference</h2>
+		</div>
+
+		<div class="help-grid">
+			<div class="help-column">
+				<div class="help-section">
+					<h4>Playback</h4>
+					<div class="help-item"><kbd>Space</kbd> play/stop</div>
+
+				</div>
+
+				<div class="help-section">
+					<h4>Preview</h4>
+					<div class="help-item"><kbd class="key">P</kbd> play fundamentals of selected</div>
+					<div class="help-item"><kbd class="key">O</kbd> play partials of selected</div>
+					<div class="help-item"><kbd class="key">H</kbd> toggle audio preview</div>
+					<div class="help-item"><kbd class="key">S</kbd> spotlight (hold to hear partial)</div>
+				</div>
+
+				<div class="help-section">
+					<h4>Selection & Editing</h4>
+					<div class="help-item"><kbd>Ctrl+A</kbd> select all in track</div>
+					<div class="help-item"><kbd>Ctrl+C/X/V</kbd> copy/cut/paste</div>
+					<div class="help-item"><kbd>D</kbd> duplicate</div>
+					<div class="help-item"><kbd>Del</kbd> delete selected</div>
+					<div class="help-item"><kbd class="key">L</kbd> lock partials</div>
+					<div class="help-item"><kbd>Ctrl+Z</kbd> undo</div>
+					<div class="help-item"><kbd>Ctrl+Y</kbd> redo</div>
+					<div class="help-item"><kbd>Ctrl+S</kbd> save project</div>
+				</div>
+
+				<div class="help-section">
+					<h4>Moving Notes</h4>
+					<div class="help-item"><kbd class="key">Up/Down</kbd> move to closest partial</div>
+					<div class="help-item"><kbd class="key">Shift+Up/Down</kbd> move by step</div>
+					<div class="help-item"><kbd class="key">Left/Right</kbd> move by grid</div>
+				</div>
+
+				<div class="help-section">
+					<h4>Resizing Notes</h4>
+					<div class="help-item"><kbd class="key">Shift+Left/Right</kbd> change duration</div>
+				</div>
+			</div>
+
+			<div class="help-column">
+				<div class="help-section">
+					<h4>View</h4>
+					<div class="help-item"><kbd class="key">T</kbd> toggle inactive partials</div>
+					<div class="help-item"><kbd class="key">V</kbd> hide selected notes</div>
+					<div class="help-item"><kbd class="key">Shift+V</kbd> show all hidden</div>
+					<div class="help-item"><kbd class="key">U</kbd> toggle magnet mode</div>
+					<div class="help-item"><kbd class="key">M</kbd> computer keyboard mode</div>
+
+				</div>
+
+				<div class="help-section">
+					<h4>Partial Selection Mode</h4>
+					<div class="help-item"><kbd class="key">1</kbd> nearest partial</div>
+					<div class="help-item"><kbd class="key">2</kbd> undertone series</div>
+					<div class="help-item"><kbd class="key">3</kbd> hybrid mode</div>
+				</div>
+
+				<div class="help-section">
+					<h4>Quantize</h4>
+					<div class="help-item"><kbd class="key">Q</kbd> quantize to grid</div>
+					<div class="help-item"><kbd class="key">Shift+Q</kbd> quantize to tuning</div>
+				</div>
+
+
+
+				<div class="help-section">
+					<h4>Navigation</h4>
+					<div class="help-item"><kbd>Ctrl+1/2/3</kbd> switch tabs</div>
+					<div class="help-item"><kbd class="key">Left/Right</kbd> move cursor by grid</div>
+					<div class="help-item"><kbd class="key">Shift+Left/Right</kbd> skip to event</div>
+				</div>
+			</div>
+
+			<div class="help-column">
+				<div class="help-section">
+					<h4>Mouse - Canvas</h4>
+					<div class="help-item"><kbd>Click</kbd> select note</div>
+					<div class="help-item"><kbd>Shift+Click</kbd> add to selection</div>
+					<div class="help-item"><kbd>Ctrl+Click</kbd> preview chord</div>
+					<div class="help-item"><kbd>Double-click</kbd> create note</div>
+					<div class="help-item"><kbd>Drag</kbd> move notes</div>
+					<div class="help-item"><kbd>Alt+Drag</kbd> duplicate</div>
+					<div class="help-item"><kbd>Drag edge</kbd> resize</div>
+				</div>
+
+				<div class="help-section">
+					<h4>Mouse - Scrolling</h4>
+					<div class="help-item"><kbd>Scroll</kbd> vertical scroll</div>
+					<div class="help-item"><kbd>Shift+Scroll</kbd> horizontal scroll</div>
+					<div class="help-item"><kbd>Ctrl+Scroll</kbd> zoom time</div>
+					<div class="help-item"><kbd>Ctrl+Shift+Scroll</kbd> zoom pitch</div>
+				</div>
+
+				<div class="help-section">
+					<h4>Mouse - Timeline</h4>
+					<div class="help-item"><kbd>Click</kbd> set playhead</div>
+
+				</div>
+
+
+			</div>
+		</div>
+
+		<div class="help-footer">
+			<div class="help-links">
+			</div>
+		</div>
+	</div>
+</div>
+<div class="infoSection exportSection hidden">
+	<div class="infoPane">
+		<div class="close">&#10006;</div>
+		<h2>Export</h2>
+
+		<p>Export from:</p>
+		<span class="ui-choice export-from-tracks">
+			<button class="ui-choice-option selected" data-value="all-tracks">All Tracks</button>
+			<button class="ui-choice-option" data-value="custom">Custom</button>
+		</span>
+		<div class="ui-choice-custom export-tracks-custom">
+			<div class="export-tracks-list">
+				<label class="export-checkbox-item">
+					<input type="checkbox" class="export-select-all-tracks" checked>
+					<span class="checkbox-icon"><i class="fa fa-check"></i></span>
+					<span class="checkbox-label">Select All</span>
+				</label>
+				<hr class="hr-subtle">
+				<div class="export-tracks-container"></div>
+			</div>
+		</div>
+		<p class="u-mt-15">Partials:</p>
+		<span class="ui-choice export-from-partials">
+			<button class="ui-choice-option selected" data-value="all-partials">All Partials</button>
+			<button class="ui-choice-option" data-value="active-partials">Active Only</button>
+			<button class="ui-choice-option" data-value="fundamentals">Fundamentals</button>
+			<button class="ui-choice-option" data-value="custom">Custom</button>
+		</span>
+		<textarea class="ui-choice-custom export-partials-custom export-partials-input" placeholder="Enter partial numbers separated by commas&#10;(e.g., 1, 2, 5, 7)"></textarea>
+		<p class="u-mt-15">Export format:</p>
+		<span class="ui-choice export-format">
+			<button class="ui-choice-option selected" data-value="audio">Audio</button>
+			<button class="ui-choice-option" data-value="midi">MIDI</button>
+			<button class="ui-choice-option" data-value="musicxml">MusicXML (Dorico)</button>
+		</span>
+
+		<div class="midi-export-options export-options-panel">
+			<label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+				<input type="checkbox" class="midi-export-pitchbend" checked>
+				<span>Include pitch bends</span>
+			</label>
+			<p style="margin-top: 8px; font-size: 12px; color: #888;">
+				When enabled, pitch bend events are added to approximate microtonal frequencies.
+			</p>
+		</div>
+
+		<div class="musicxml-options export-options-panel">
+			<p class="u-mb-8">Pitch quantization:</p>
+			<span class="ui-choice musicxml-quantize">
+				<button class="ui-choice-option selected" data-value="off">Off</button>
+				<button class="ui-choice-option" data-value="12">12EDO</button>
+				<button class="ui-choice-option" data-value="24">24EDO</button>
+				<button class="ui-choice-option" data-value="36">36EDO</button>
+				<button class="ui-choice-option" data-value="48">48EDO</button>
+				<button class="ui-choice-option" data-value="tuning" style="display: none;">From Tuning</button>
+			</span>
+			<div class="musicxml-tuning-select u-hidden u-mt-10">
+				<span class="param-label">Tuning:</span>
+				<select class="musicxml-tuning-dropdown u-min-w-200"></select>
+			</div>
+			<p style="margin-top: 10px; font-size: 12px; color: #888;">
+				24EDO: half sharps/flats - 36EDO: arrows (HEJI-style) - 48EDO: combined
+			</p>
+		</div>
+
+		<div class="u-mt-20 u-flex u-flex-gap-10">
+			<button class="export-button">Export</button>
+			<button class="save-project-button">Save Project</button>
+		</div>
+	</div>
+</div>
+<header class="header">
+	<div class="header-section-tabs">
+		<span class="header-logo">
+			<img src="./src/i/favicon-32x32.png" alt="Spectra" width="20" height="20">
+		</span>
+		<button class="header-button" id="header-back">
+			<i class="fa fa-long-arrow-left"></i>
+		</button>
+		<input type="button" class="header-button" id="header-io" value="I/O" data-page="0">
+		<input type="button" class="header-button" id="header-setup" value="Setup" data-page="1">
+		<input type="button" class="header-button s" id="header-write" value="Write" data-page="2">
+		<div class="header-divider"></div>
+	</div>
+	<div class="header-section-ui">
+		<div class="header-section header-section-left">
+			<button class="header-button header-button-icon" id="header-save-project" data-tooltip="Save Project" aria-label="Save Project">
+				<i class="fa fa-floppy-o" aria-hidden="true"></i>
+			</button>
+			<button class="header-button header-button-icon" id="header-save" data-tooltip="Export" aria-label="Export">
+				<i class="fa fa-download" aria-hidden="true"></i>
+			</button>
+			<div class="write-ui">
+				<span class="menu-ui switch switch-T" data-tooltip="Toggle Inactive">
+					<input id="switch-checkbox-T" type="checkbox" class="switch-checkbox switch-T" value="1"><label class="menu-ui-label" for="switch-checkbox-T">T</label>
+				</span>
+				<span class="menu-ui radio selection-mode-radio">
+					<span class="radio-btn-wrapper" data-tooltip="Nearest Partial"><input id="radio-selectionMode-1" type="button" class="radio-selectionMode radio-button selected" value="1" data-id="0"></span>
+					<span class="radio-btn-wrapper" data-tooltip="Undertone Series"><input id="radio-selectionMode-2" type="button" class="radio-selectionMode radio-button" value="2" data-id="1"></span>
+					<span class="radio-btn-wrapper" data-tooltip="Hybrid"><input id="radio-selectionMode-3" type="button" class="radio-selectionMode radio-button" value="3" data-id="2"></span>
+				</span>
+				<span class="button-group"><span class="menu-ui switch switch-magnet" data-tooltip="Magnet Mode">
+					<input id="switch-checkbox-magnet" type="checkbox" class="switch-checkbox switch-magnet" value="0"><label class="menu-ui-label" for="switch-checkbox-magnet"><i class="fa fa-magnet"></i></label>
+				</span></span>
+				<span class="button-group"><span class="menu-ui switch switch-headphones" data-tooltip="Sound Preview (H)">
+					<input id="switch-checkbox-headphones" type="checkbox" class="switch-checkbox switch-headphones" value="1" checked><label class="menu-ui-label" for="switch-checkbox-headphones"><i class="fa fa-headphones"></i></label>
+				</span></span>
+			</div>
+		</div>
+		<div class="header-section header-section-middle">
+			<div class="playback-ui">
+				<span class="menu-ui switch playback-ui-play" aria-label="Play/Pause" data-playing="false" data-type="continue">
+					<button class="playback-play" type="button" value="0"><i class="fa fa-play" aria-hidden="true"></i></button>
+				</span>
+				<span class="menu-ui switch playback-options" data-tooltip="Set Playback mode" aria-label="Set Playback mode">
+					<button class="playback-options-caret"><i class="fa fa-caret-down" aria-hidden="true"></i></button>
+					<span class="playback-options-menu">
+						<span>Playback mode:</span>
+						<div class="playback-options-menu-item selected" data-type="continue">Continue playback</div>
+						<div class="playback-options-menu-item" data-type="return">Return back</div>
+					</span>
+				</span>
+
+				<span class="playback-time">00:00:00:000</span>
+
+			</div>
+		</div>
+		<div class="header-section header-section-right">
+			<div class="volume-control">
+				<input id="switch-checkbox-midi-partial" type="checkbox" class="switch-checkbox switch-midi-partial" value="0" aria-label="MIDI Partial Mode - play fundamentals of ordered partials"><label class="menu-ui-label" for="switch-checkbox-midi-partial" data-tooltip="MIDI Partial Mode"><svg class="keyboard-icon" width="14" height="10" viewBox="0 0 14 10"><rect x="0.5" y="0.5" width="13" height="9" rx="1" fill="none" stroke="currentColor"/><line x1="4.5" y1="1" x2="4.5" y2="9" stroke="currentColor" stroke-width="0.5"/><line x1="9.5" y1="1" x2="9.5" y2="9" stroke="currentColor" stroke-width="0.5"/><rect x="3" y="1" width="2" height="5" fill="currentColor"/><rect x="8" y="1" width="2" height="5" fill="currentColor"/></svg></label>
+				<input id="switch-checkbox-computer-keyboard" type="checkbox" class="switch-checkbox switch-computer-keyboard" value="0" aria-label="Computer Keyboard Mode - play notes using your computer keyboard, comma and period change octave"><label class="menu-ui-label" for="switch-checkbox-computer-keyboard" data-tooltip="Computer Keyboard (M)"><i class="fa fa-keyboard-o"></i></label>
+				<button class="volume-mute-btn" data-tooltip="Mute (Ctrl+M)" aria-label="Mute (Ctrl+M)">
+					<i class="fa fa-volume-up volume-icon"></i>
+					<i class="fa fa-volume-off volume-icon-muted" style="display:none;"></i>
+				</button>
+				<div class="volume-slider-container">
+					<input type="range" class="volume-slider" min="0" max="100" value="84">
+					<div class="volume-meter">
+						<div class="volume-meter-fill"></div>
+					</div>
+				</div>
+				<div class="volume-value">-6.0 dB</div>
+			</div>
+			<div class="header-name">
+				<button class="infoButton" aria-label="Info / Help">?</button>
+			</div>
+		</div>
+	</div>
+</header>
+<main class="main">
+	<div class="page io-page" style="display: none; overflow-y: auto;">
+		<div class="io-flow-diagram">
+			<div class="io-flow-container">
+				<div class="io-flow-inputs">
+					<div class="io-flow-input" data-type="midi-in">
+						<span class="io-flow-label">MIDI In</span>
+						<span class="io-flow-device">&nbsp;</span>
+					</div>
+					<div class="io-flow-input" data-type="osc-in">
+						<span class="io-flow-label">OSC In</span>
+						<span class="io-flow-device">&nbsp;</span>
+					</div>
+				</div>
+				<div class="io-flow-arrow">-></div>
+				<div class="io-flow-core">Spectra</div>
+				<div class="io-flow-arrow">-></div>
+				<div class="io-flow-filter">
+					<div class="io-flow-filter-line filter-tracks">Tracks: All</div>
+					<div class="io-flow-filter-line filter-partials">Fundamentals only</div>
+				</div>
+				<div class="io-flow-arrow">-></div>
+				<div class="io-flow-outputs">
+					<div class="io-flow-output" data-type="midi-out">
+						<span class="io-flow-label">MIDI Out</span>
+						<span class="io-flow-device">&nbsp;</span>
+					</div>
+					<div class="io-flow-output" data-type="osc-out">
+						<span class="io-flow-label">OSC Out</span>
+						<span class="io-flow-device">&nbsp;</span>
+					</div>
+				</div>
+			</div>
+		</div>
+		<div class="setup-container io-setup-container">
+			<div class="setup-tabs io-tabs">
+				<input type="button" class="io-tab selected" value="MIDI" data-id="0"><br>
+				<input type="button" class="io-tab" value="OSC" data-id="1"><br>
+				<input type="button" class="io-tab" value="Sync" data-id="2"><br>
+				<input type="button" class="io-tab" value="Output" data-id="3"><br>
+			</div>
+
+			<div class="io-section" data-section="0" style="display: block;">
+				<h3>MIDI</h3>
+
+				<div class="setup-row" style="margin: 15px 0 8px;">
+					<span class="param-label">Status:</span>
+					<span class="midi-status" style="font-weight: bold; color: #999;">&nbsp;</span>
+				</div>
+				<div class="setup-row" style="margin: 0 0 15px;">
+					<button class="midi-refresh" title="Refresh MIDI ports">Refresh</button>
+					<button class="midi-panic" title="Panic - All notes off">Panic</button>
+				</div>
+
+				<div style="margin: 20px 0; padding: 15px 0; ">
+					<p style="margin: 0 0 12px 0; color: #aaa;"><b>Input:</b></p>
+
+					<div class="setup-row" style="margin: 10px 0; display: flex; align-items: center; gap: 10px;">
+						<select class="midi-input-select" style="min-width: 250px; flex: 1;">
+							<option value="">Select to Add</option>
+						</select>
+						<span class="midi-input-indicator" style="display: inline-block; width: 10px; height: 10px; background: #333; transition: background 0.1s;" title="Activity indicator"></span>
+					</div>
+
+					<div class="midi-inputs-list" style="margin: 10px 0;">
+						<div style="color: #666; font-size: 12px; padding: 8px 0;">No inputs selected</div>
+					</div>
+				</div>
+
+				<div style="margin: 20px 0; padding: 15px 0; ">
+					<p style="margin: 0 0 12px 0; color: #aaa;"><b>Output:</b></p>
+					<div class="setup-row" style="margin: 10px 0;">
+						<select class="midi-output-select" style="min-width: 220px; width: 100%;">
+							<option value="">Select to Add</option>
+						</select>
+					</div>
+					<div class="midi-outputs-list" style="margin: 10px 0;">
+						<div style="color: #666; font-size: 12px; padding: 8px 0;">No outputs selected</div>
+					</div>
+				</div>
+
+				<div style="margin: 20px 0; padding: 15px; background: #181818; border: none; ">
+					<p style="margin: 0 0 10px 0; color: #aaa;"><b>Virtual MIDI Setup</b></p>
+					<ul style="margin: 0; padding-left: 20px; color: #888; font-size: 12px;">
+						<li><b>Windows:</b> <a href="https://www.tobias-erichsen.de/software/loopmidi.html" target="_blank" style="color: #4a9eff;">loopMIDI</a></li>
+						<li><b>macOS:</b> IAC Driver - enable in Audio MIDI Setup</li>
+						<li><b>Linux:</b> ALSA virtual ports or JACK</li>
+					</ul>
+				</div>
+
+				<div style="margin: 20px 0; padding: 15px 0; border: none; ">
+					<details>
+						<summary style="cursor: pointer; color: #aaa; font-size: 12px; padding: 5px 0;"><b>SysEx Message Format</b></summary>
+
+						<div style="margin-top: 15px; font-size: 12px; color: #888;">
+							<p style="margin: 0 0 10px 0;">Manufacturer ID: 0x7D</p>
+
+							<div style="margin: 15px 0; padding: 12px; background: #151515; ">
+								<p style="margin: 0 0 8px 0; color: #aaa;"><b>Microtonal Note (12 bytes)</b></p>
+								<code style="display: block; font-family: monospace; font-size: 12px; color: #aaa; line-height: 1.6; white-space: pre; overflow-x: auto;">F0 7D 01 [trk] [note] [vel] [pitL] [pitH] [sign] [partial] [amp] F7</code>
+								<ul style="margin: 10px 0 0 0; padding-left: 18px; color: #777; font-size: 12px; line-height: 1.8;">
+									<li><b>01</b> = Note message type</li>
+									<li><b>trk</b> = Track index (0-127)</li>
+									<li><b>note</b> = Nearest MIDI note (0-127)</li>
+									<li><b>vel</b> = Velocity (0-127, 0 = note off)</li>
+									<li><b>pitL/pitH</b> = 14-bit pitch deviation in decicents (0.1&cent; resolution, &plusmn;1638.3&cent; range)</li>
+									<li><b>sign</b> = 0 = positive, 1 = negative deviation</li>
+									<li><b>partial</b> = Partial number (1-127)</li>
+									<li><b>amp</b> = Amplitude (0-127)</li>
+								</ul>
+							</div>
+
+							<div style="margin: 15px 0; padding: 12px; background: #151515; ">
+								<p style="margin: 0 0 8px 0; color: #aaa;"><b>Panic / All Notes Off (12 bytes)</b></p>
+								<code style="display: block; font-family: monospace; font-size: 12px; color: #aaa; line-height: 1.6;">F0 7D 02 00 00 00 00 00 00 00 00 F7</code>
+								<p style="margin: 8px 0 0 0; color: #777; font-size: 12px;"><b>02</b> = Panic message type</p>
+							</div>
+
+							<div style="margin: 15px 0; padding: 12px; background: #151515; ">
+								<p style="margin: 0 0 8px 0; color: #aaa;"><b>Transport Sync (12 bytes)</b></p>
+								<code style="display: block; font-family: monospace; font-size: 12px; color: #aaa; line-height: 1.6; white-space: pre; overflow-x: auto;">F0 7D 03 [time0] [time1] [time2] [time3] [flags] 00 00 00 F7  (Start)
+F0 7D 04 [time0] [time1] [time2] [time3] [flags] 00 00 00 F7  (Stop)</code>
+								<ul style="margin: 10px 0 0 0; padding-left: 18px; color: #777; font-size: 12px; line-height: 1.8;">
+									<li><b>03</b> = Transport Start, <b>04</b> = Transport Stop</li>
+									<li><b>time0-3</b> = 28-bit time in milliseconds (max ~74.5 hours)</li>
+									<li><b>flags</b> = Reserved for future use</li>
+								</ul>
+							</div>
+						</div>
+					</details>
+				</div>
+			</div>
+
+			<div class="io-section" data-section="1" style="display: none;">
+				<h3>OSC</h3>
+
+				<div class="osc-network-discovery" style="display: none; margin: 20px 0; padding: 15px; background: #181818; border: none; ">
+					<div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+						<p style="margin: 0; color: #aaa;"><b>Network Discovery</b></p>
+						<div style="display: flex; gap: 8px; align-items: center;">
+							<button class="osc-network-scan-btn">Scan Network</button>
+						</div>
+					</div>
+					<div class="osc-local-info" style="font-size: 12px; color: #888; margin-bottom: 10px;"></div>
+					<div class="osc-discovered-devices" style="max-height: 200px; overflow-y: auto;">
+						<div class="osc-no-devices" style="color: #666; font-size: 12px; padding: 8px 0;">Click "Scan Network" to find OSC devices</div>
+					</div>
+				</div>
+
+				<div style="margin: 20px 0; padding: 15px 0; ">
+					<div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+						<p style="margin: 0; color: #aaa;"><b>Devices</b></p>
+						<button class="osc-add-device-btn">Add</button>
+					</div>
+					<div class="osc-devices-list" style="margin: 10px 0;">
+						<div style="color: #666; font-size: 12px; padding: 8px 0;">No devices configured</div>
+					</div>
+				</div>
+
+				<div style="margin: 20px 0; padding: 15px 0; ">
+					<p style="margin: 0 0 12px 0; color: #aaa;"><b>Input:</b></p>
+					<div class="setup-row" style="margin: 10px 0;">
+						<select class="osc-input-select" style="width: 100%;">
+							<option value="">Select device to add</option>
+						</select>
+					</div>
+					<div class="osc-input-devices-list" style="margin: 10px 0;"></div>
+				</div>
+
+				<div style="margin: 20px 0; padding: 15px 0; ">
+					<p style="margin: 0 0 12px 0; color: #aaa;"><b>Output:</b></p>
+					<div class="setup-row" style="margin: 10px 0;">
+						<select class="osc-output-select" style="width: 100%;">
+							<option value="">Select device to add</option>
+						</select>
+					</div>
+					<div class="osc-output-devices-list" style="margin: 10px 0;"></div>
+				</div>
+
+				<div class="osc-delete-modal" style="display: none;">
+					<div class="osc-modal-content narrow">
+						<p>Delete this device?</p>
+						<p class="osc-delete-device-name" style="color: #fff; font-weight: bold;"></p>
+						<div class="osc-modal-actions" style="justify-content: center;">
+							<button class="osc-delete-cancel osc-modal-cancel">Cancel</button>
+							<button class="osc-delete-confirm osc-modal-confirm-delete">Delete</button>
+						</div>
+					</div>
+				</div>
+
+				<div class="osc-address-reference" style="margin: 20px 0; padding: 15px; background: #181818; border: none; ">
+					<p style="margin: 0 0 10px 0; color: #aaa;"><b>OSC Address Reference</b></p>
+					<div style="color: #888; font-size: 12px; font-family: monospace;">
+						<p style="margin: 4px 0;"><b>Incoming (to Spectra on port 9002):</b></p>
+						<p style="margin: 4px 0 4px 15px;"><code>/spectra/note/on</code> pitch velocity [track]</p>
+						<p style="margin: 4px 0 4px 15px;"><code>/spectra/note/off</code> pitch [track]</p>
+						<p style="margin: 4px 0 4px 15px;"><code>/spectra/transport/start</code> playing (1=play, 0=stop)</p>
+						<p style="margin: 4px 0 4px 15px;"><code>/spectra/transport/position</code> position (seconds)</p>
+						<p style="margin: 4px 0 4px 15px;"><code>/spectra/transport/loop</code> enabled [start] [end]</p>
+						<p style="margin: 4px 0 4px 15px;"><code>/spectra/transport/speed</code> multiplier</p>
+						<p style="margin: 4px 0 4px 15px;"><code>/spectra/transport/record</code> enabled (1=record, 0=stop)</p>
+						<p style="margin: 4px 0 4px 15px;"><code>/spectra/write/note/create</code> time pitch duration [track] [partial]</p>
+						<p style="margin: 4px 0 4px 15px;"><code>/spectra/write/note/delete</code> time pitch [track]</p>
+						<p style="margin: 4px 0 4px 15px;"><code>/spectra/write/track/select</code> id</p>
+						<p style="margin: 4px 0 4px 15px;"><code>/spectra/write/track/instrument</code> id instrumentName <span style="color: #666;">(sets the track's timbre)</span></p>
+						<p style="margin: 4px 0 4px 15px;"><code>/spectra/write/track/name</code> id name</p>
+						<p style="margin: 4px 0 4px 15px;"><code>/spectra/write/tuning/add</code> track time tuningName</p>
+						<p style="margin: 4px 0 4px 15px;"><code>/spectra/write/tuning/remove</code> track time</p>
+						<p style="margin: 4px 0 4px 15px;"><code>/spectra/write/tuning/change</code> track time tuningName</p>
+						<p style="margin: 4px 0 4px 15px;"><code>/spectra/write/grid/add</code> track time gridName</p>
+						<p style="margin: 4px 0 4px 15px;"><code>/spectra/write/grid/remove</code> track time</p>
+						<p style="margin: 4px 0 4px 15px;"><code>/spectra/write/grid/change</code> track time gridName</p>
+						<p style="margin: 8px 0 4px 0;"><b>Outgoing (from Spectra):</b></p>
+						<p style="margin: 4px 0 4px 15px;"><code>/spectra/note/on</code> track partial frequency velocity amplitude</p>
+						<p style="margin: 4px 0 4px 15px;"><code>/spectra/note/off</code> track partial frequency</p>
+						<p style="margin: 4px 0 4px 15px;"><code>/spectra/transport/start</code> playing (1/0)</p>
+						<p style="margin: 4px 0 4px 15px;"><code>/spectra/transport/position</code> position</p>
+						<p style="margin: 4px 0 4px 15px;"><code>/spectra/transport/loop</code> position</p>
+					</div>
+				</div>
+			</div>
+
+			<div class="osc-add-device-modal" style="display: none;">
+				<div class="osc-modal-content">
+					<h3>Add OSC Device</h3>
+
+					<div class="osc-modal-config">
+						<label>Device Name:</label>
+						<input type="text" class="osc-device-name-input" placeholder="Max/MSP" style="width: 100%; box-sizing: border-box;">
+					</div>
+
+					<div class="osc-modal-config osc-connection-type-container" style="display: none;">
+						<label>Connection Type:</label>
+						<select class="osc-device-type" style="width: 100%; padding: 8px; background: #1a1a1a; color: #fff; ">
+							<option value="websocket">WebSocket</option>
+							<option value="udp">UDP</option>
+						</select>
+					</div>
+
+					<div class="osc-modal-ws-config osc-modal-config" style="text-align: center;">
+						<p style="margin: 0 0 10px 0;">Pairing Code:</p>
+						<div class="osc-modal-pairing-code">------</div>
+						<button class="osc-modal-generate-code" style="margin-top: 10px; padding: 6px 12px;">Generate Code</button>
+						<p class="osc-modal-code-timer"></p>
+						<p class="osc-modal-udp-note" style="margin-top: 15px; font-size: 12px; color: #666;">For UDP connections, use the <a href="https://spectraapp.net/desktop" style="color: #4a9eff;">desktop application</a></p>
+					</div>
+
+					<div class="osc-modal-udp-config osc-modal-config" style="display: none;">
+						<label>Target IP:Port</label>
+						<div style="display: flex; gap: 8px;">
+							<input type="text" class="osc-modal-udp-host" value="127.0.0.1" style="flex: 1;">
+							<input type="number" class="osc-modal-udp-port" value="9000" min="1" max="65535" style="width: 80px;">
+						</div>
+						<p style="margin-top: 8px; font-size: 12px; color: #666;">Spectra receives OSC on port 9002</p>
+					</div>
+
+					<div class="osc-modal-actions">
+						<button class="osc-modal-cancel">Cancel</button>
+						<button class="osc-modal-add">Add Device</button>
+					</div>
+				</div>
+			</div>
+
+			<div class="io-section" data-section="2" style="display: none;">
+				<h3>Transport Sync</h3>
+
+				<div style="margin: 20px 0; padding: 15px 0; ">
+					<p style="margin: 0 0 12px 0; color: #aaa;"><b>External Control:</b></p>
+					<div class="setup-row" style="margin: 10px 0;">
+						<label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+							<input type="checkbox" class="midi-transport-enable" checked>
+							<span>Enable external transport control</span>
+						</label>
+					</div>
+					<p style="color: #666; font-size: 12px; margin: 10px 0 0 0;">Responds to: Play, Stop, Continue, Song Position Pointer</p>
+				</div>
+
+
+			</div>
+
+			<div class="io-section" data-section="3" style="display: none;">
+				<h3>Output Filter</h3>
+
+				<div style="margin: 20px 0; padding: 15px 0; ">
+					<p style="margin: 0 0 12px 0; color: #aaa;"><b>Track Filter:</b></p>
+					<div class="setup-row" style="margin: 10px 0; align-items: flex-start;">
+						<span class="param-label">Tracks:</span>
+						<span class="ui-choice midi-tracks-filter">
+							<button class="ui-choice-option selected" data-value="all">All</button>
+							<button class="ui-choice-option" data-value="current">Current</button>
+							<button class="ui-choice-option" data-value="custom">Custom</button>
+						</span>
+						<input type="text" class="ui-choice-custom midi-tracks-custom midi-tracks-input" style="display: none; width: 100px; margin-left: 10px; padding: 4px 8px; background: #181818; color: #fff; " placeholder="1, 2, 3...">
+					</div>
+				</div>
+
+				<div style="margin: 20px 0; padding: 15px 0; ">
+					<p style="margin: 0 0 12px 0; color: #aaa;"><b>Partial Filter:</b></p>
+					<div class="setup-row" style="margin: 10px 0; align-items: flex-start;">
+						<span class="param-label">Partials:</span>
+						<span class="ui-choice midi-partials-filter">
+							<button class="ui-choice-option" data-value="all-partials">All Partials</button>
+							<button class="ui-choice-option" data-value="active-partial">Active Partial</button>
+							<button class="ui-choice-option selected" data-value="fundamentals">Fundamentals</button>
+							<button class="ui-choice-option" data-value="custom">Custom</button>
+						</span>
+					</div>
+					<textarea class="ui-choice-custom midi-partials-custom midi-partials-input" style="display: none; width: 100%; margin-top: 10px; padding: 8px; background: #181818; color: #fff; " rows="2" placeholder="Enter partial numbers separated by commas&#10;(e.g., 1, 2, 5, 7)"></textarea>
+				</div>
+
+				<div class="spatial-imager-section">
+					<p class="spatial-imager-title"><b>Spatial Output Routing</b> <span class="spatial-imager-subtitle">(Spatial Zones &rarr; OSC Devices)</span></p>
+
+					<div class="spatial-imager-canvas-container">
+						<canvas class="spatial-imager-canvas"></canvas>
+					</div>
+
+					<div class="spatial-imager-controls">
+						<span class="spatial-imager-zones-label">Zones:</span>
+						<span class="spatial-imager-zones-stepper">
+							<button class="spatial-imager-zones-dec" title="Remove zone">&minus;</button>
+							<span class="spatial-imager-zones-count">1</span>
+							<button class="spatial-imager-zones-inc" title="Add zone">+</button>
+						</span>
+						<button class="spatial-imager-reset-btn">Reset</button>
+					</div>
+
+					<div class="spatial-imager-zones-list"></div>
+				</div>
+			</div>
+
+		</div>
+	</div>
+	<div class="page" style="display: none; overflow-y: auto;">
+		<div class="setup-container">
+			<div class="setup-tabs">
+				<input type="button" class="setup-tab selected" value="Tuning" data-id="0"><br>
+				<input type="button" class="setup-tab" value="Timbre" data-id="1"><br>
+				<input type="button" class="setup-tab" value="Grid" data-id="2"><br>
+				<input type="button" class="setup-tab" value="Other" data-id="3">
+			</div>
+
+			<div class="editor-list-container tuning-list-container">
+				<div class="editor-list tuning-list">
+				</div>
+				<div class="editor-list-buttons">
+					<button class="tuning-add" title="New Tuning">+</button>
+					<button class="tuning-remove" title="Delete Tuning">-</button>
+					<button class="tuning-import-btn" title="Import Tuning"><i class="fa fa-upload"></i></button>
+					<button class="tuning-export-btn" title="Export Tuning"><i class="fa fa-download"></i></button>
+					<input type="file" class="tuning-import-input" accept=".json,.scl" style="display: none;">
+				</div>
+			</div>
+
+			<div class="editor-list-container timbre-list-container">
+				<div class="editor-list timbre-list">
+				</div>
+				<div class="editor-list-buttons">
+					<button class="timbre-add" title="New Timbre">+</button>
+					<button class="timbre-remove" title="Delete Timbre">-</button>
+					<button class="timbre-import-btn" title="Import Timbre"><i class="fa fa-upload"></i></button>
+					<button class="timbre-export-btn" title="Export Timbre"><i class="fa fa-download"></i></button>
+					<input type="file" class="timbre-import-input" accept=".json" style="display: none;">
+				</div>
+			</div>
+
+			<div class="editor-list-container grid-list-container">
+				<div class="editor-list grid-list">
+				</div>
+				<div class="editor-list-buttons">
+					<button class="grid-add" title="New Grid">+</button>
+					<button class="grid-remove" title="Delete Grid">-</button>
+					<button class="grid-import-btn" title="Import Grid"><i class="fa fa-upload"></i></button>
+					<button class="grid-export-btn" title="Export Grid"><i class="fa fa-download"></i></button>
+					<input type="file" class="grid-import-input" accept=".json" style="display: none;">
+				</div>
+			</div>
+
+			<div class="setup-section">
+				<h3>Tuning Editor</h3>
+
+				<div class="tuning-editor-content">
+					<span class="param-label">Name:</span><input type="text" class="tuning-name" value="" placeholder="Tuning name" style="min-width: 250px;"><br>
+					<span class="param-label">Type:</span><select class="tuning-type tuning-type-basic" style="min-width: 250px;">
+						<optgroup label="Mathematical">
+							<option value="edo">Equal Temperament (EDO)</option>
+							<option value="ratio">Ratio Entry</option>
+						</optgroup>
+						<optgroup label="Analysis">
+							<option value="audio-analysis">From Audio Analysis</option>
+						</optgroup>
+						<optgroup label="Import">
+							<option value="file">File Import (.scl)</option>
+							<option value="custom">Custom Frequencies</option>
+						</optgroup>
+						<optgroup label="Dynamic">
+							<option value="adaptive">Adaptive</option>
+						</optgroup>
+					</select>
+
+				<div class="edo-settings tuning-settings">
+					<span class="param-label">Octave Multiplier:</span><input type="number" class="edo-multiplier" value="2" step="0.001" style="width: 100px;"><br>
+					<span class="param-label">Number of Divisions:</span><input type="number" class="edo-divisions" value="12" min="1" max="100" style="width: 100px;"><br>
+					<span class="param-label">Reference A4 (Hz):</span><input type="number" class="edo-reference" value="440" step="0.01" style="width: 100px;"><br>
+					<br>
+					<input type="button" class="edo-microtune" value="Custom Microtuning">
+				</div>
+
+
+				<div class="ratio-settings tuning-settings hidden">
+					<label>Enter ratios (one per line or comma-separated):</label><br>
+					<textarea class="ratio-input" rows="6" cols="30" placeholder="1/1&#10;9/8&#10;5/4&#10;4/3&#10;3/2&#10;5/3&#10;15/8&#10;2/1"></textarea><br>
+					<span class="param-label">Reference (Hz):</span><input type="number" class="ratio-reference" value="261.63" step="0.01" style="width: 100px;"><br>
+					<span class="param-label">Octaves:</span><input type="number" class="ratio-octaves" value="8" min="1" max="12" style="width: 100px;">
+				</div>
+
+
+
+				<div class="audio-analysis-settings tuning-settings hidden">
+					<p style="margin-bottom: 12px; color: #777; font-size: 12px;">
+						Analyze an audio file to extract frequencies and create a tuning from them.
+					</p>
+					<input type="button" class="audio-analysis-open" value="Open Audio Analyzer">
+					<span class="audio-analysis-status" style="margin-left: 10px; color: #888;"></span>
+					<div style="margin-top: 12px;">
+						<label>MIDI Offset: </label>
+						<input type="number" class="midi-offset-input" value="0" style="width: 60px;">
+					</div>
+				</div>
+
+				<div class="file-settings tuning-settings hidden">
+					<input type="file" class="tuning-file-input" accept=".scl,.txt" style="display: none;">
+					<input type="button" class="tuning-file-button" value="Choose .scl File">
+					<span class="tuning-file-name" style="margin-left: 10px;"></span>
+				</div>
+
+				<div class="custom-settings tuning-settings hidden">
+					<label>Enter frequencies (Hz), one per line:</label>
+					<br>
+					<textarea class="custom-frequencies" rows="10" cols="40" placeholder="440&#10;550&#10;660&#10;..."></textarea>
+				</div>
+
+				<div class="adaptive-settings tuning-settings hidden">
+					<p style="margin-bottom: 12px; color: #777; font-size: 11px;">
+						Before any note: 12EDO available. While notes play: pitches from
+						spectrum + inverted spectrum of sounding notes. New notes chain from existing.
+					</p>
+					<span class="param-label">Min frequency (Hz):</span>
+					<input type="number" class="adaptive-min-freq" value="20" min="1" max="100" step="1" style="width: 80px;"><br>
+					<span class="param-label">Max frequency (Hz):</span>
+					<input type="number" class="adaptive-max-freq" value="20000" min="1000" max="24000" step="100" style="width: 80px;"><br>
+					<label style="margin-top: 8px; display: block;">
+						<input type="checkbox" class="adaptive-apply-preview" checked>
+						Apply to MIDI preview (ON: follows adaptive, OFF: snaps to cursor)
+					</label>
+				</div>
+
+
+
+				<div class="microtune-editor">
+					<h4>Fine-tune Notes</h4>
+					<div class="microtune-controls" style="max-height: 300px; overflow-y: auto;">
+					</div>
+					<input type="button" class="microtune-apply" value="Apply Microtuning">
+				</div>
+
+				<div class="tuning-preview">
+					<div class="tuning-preview-content">No tuning loaded</div>
+					<div class="tuning-visual-preview">
+						<canvas class="tuning-visual-canvas"></canvas>
+					</div>
+				</div>
+
+				<br>
+				<button class="tuning-save">Save</button>
+				</div>
+			</div>
+
+			<div class="setup-section">
+				<h3>Timbre Editor</h3>
+
+				<div class="timbre-editor-content">
+					<div class="timbre-name-row">
+						<span class="param-label">Timbre Name:</span>
+						<input type="text" class="timbre-name" value="" placeholder="Timbre name">
+					</div>
+
+					<div class="timbre-keypoints-section timbre-keypoints-container">
+
+
+						<div class="timbre-action-row">
+							<input type="button" class="analyzerOpen" value="Extract from Audio">
+							<input type="button" class="playTimbre" value="Play Timbre">
+						</div>
+
+						<div class="timbre-chart-table-row">
+							<div class="timbre-chart-section">
+								<div class="timbre-chart-wrapper">
+									<canvas class="timbreChart"></canvas>
+								</div>
+
+								<div class="timbre-partials-controls">
+									<div class="timbre-partials-count-row">
+										<span>Partials:</span>
+										<input type="number" class="timbre-partials-count" value="16" min="1" max="128">
+										<input type="button" class="timbre-resize" value="Resize">
+									</div>
+									<div class="timbre-presets-row">
+										<input type="button" class="timbre-preset-harmonic" value="Harmonic">
+										<input type="button" class="timbre-preset-odd" value="Odd">
+										<input type="button" class="timbre-preset-inharmonic" value="Inharmonic">
+									</div>
+								</div>
+							</div>
+
+							<div class="timbre-table-section">
+								<table class="partials-table">
+									<thead>
+										<tr>
+											<th>#</th>
+											<th>Mult</th>
+											<th>Amp</th>
+										</tr>
+									</thead>
+									<tbody class="timbre-partials-table"></tbody>
+								</table>
+							</div>
+						</div>
+					</div>
+
+					<div class="timbre-adsr-pan-row">
+						<div class="timbre-envelope-section">
+							<div class="timbre-section-header">
+								<span class="timbre-section-title">Envelope</span>
+								<label class="timbre-section-toggle">
+									<input type="checkbox" class="timbre-envelope-enable">
+									<span>Enable</span>
+								</label>
+							</div>
+
+							<div class="timbre-envelope-controls" style="display: none;">
+								<canvas class="timbre-envelope-canvas"></canvas>
+
+								<div class="timbre-env-grid">
+									<div class="timbre-env-input">
+										<label>A</label>
+										<input type="number" class="timbre-env-attack" value="0.005" min="0" max="5" step="0.001">
+									</div>
+									<div class="timbre-env-input">
+										<label>D</label>
+										<input type="number" class="timbre-env-decay" value="0" min="0" max="5" step="0.001">
+									</div>
+									<div class="timbre-env-input">
+										<label>S</label>
+										<input type="number" class="timbre-env-sustain" value="1" min="0" max="1" step="0.01">
+									</div>
+									<div class="timbre-env-input">
+										<label>R</label>
+										<input type="number" class="timbre-env-release" value="0.005" min="0" max="10" step="0.001">
+									</div>
+								</div>
+
+
+							</div>
+						</div>
+
+
+					</div>
+
+					<button class="timbre-save">Save</button>
+				</div>
+			</div>
+			<div class="setup-section">
+				<h3>Grid Editor</h3>
+
+				<div class="grid-editor-content">
+					<span class="param-label">Grid Name:</span>
+					<input type="text" class="grid-name" value="" placeholder="Grid name" style="min-width: 250px;"><br>
+
+					<span class="param-label">Grid Type:</span>
+					<select class="grid-type grid-type-basic" style="min-width: 250px;">
+						<option value="linear">Linear (Even Spacing)</option>
+						<option value="exponential">Exponential (Progressive)</option>
+					</select>
+
+					<div class="grid-linear-settings grid-type-settings">
+						<span class="param-label">Spacing Mode:</span>
+						<select class="grid-linear-mode" style="width: 150px;">
+							<option value="ms">Milliseconds</option>
+							<option value="bpm">BPM</option>
+						</select><br>
+
+						<div class="grid-linear-ms-group">
+							<span class="param-label">Spacing (ms):</span>
+							<input type="number" class="grid-linear-spacing" value="500" min="1" step="1" style="width: 100px;"><br>
+						</div>
+
+						<div class="grid-linear-bpm-group" style="display: none;">
+							<span class="param-label">BPM:</span>
+							<input type="number" class="grid-linear-bpm" value="120" min="1" step="0.1" style="width: 100px;"><br>
+						</div>
+
+						<span class="param-label">Subdivisions:</span>
+						<input type="number" class="grid-linear-subdivisions" value="4" min="1" max="32" style="width: 100px;">
+					</div>
+
+					<div class="grid-exponential-settings grid-type-settings" style="display: none;">
+						<span class="param-label">Base Spacing (ms):</span>
+						<input type="number" class="grid-exp-base" value="100" min="1" step="1" style="width: 100px;"><br>
+
+						<span class="param-label">Exponent:</span>
+						<input type="number" class="grid-exp-exponent" value="1.5" step="0.1" style="width: 100px;">
+						<span style="color: #888; font-size: 12px; margin-left: 10px;">
+							(If negative, uses 1/|x|)
+						</span>
+					</div>
+
+
+
+					<br>
+					<button class="grid-save">Save</button>
+				</div>
+			</div>
+			<div class="setup-section">
+				<h3>Defaults</h3>
+				<span class="param-label">Default Tuning:</span>
+				<select class="default-scale" style="min-width: 250px;"></select><br>
+				<span class="param-label">Default Grid:</span>
+				<select class="default-grid" style="min-width: 250px;">
+				</select>
+
+				<h3 style="margin-top: 20px;">Data</h3>
+				<button class="delete-all button-red">Delete all data</button><br><br>
+				<button class="delete-except-settings button-red">Delete everything except settings</button><br><br>
+
+				<h3 style="margin-top: 20px;">Audio</h3>
+				<div style="margin-bottom: 10px;">
+					<span class="param-label">Latency Compensation:</span>
+					<input type="number" class="audio-latency-input" min="0" max="500" step="10" value="0" style="width: 80px;"> ms
+					<button class="audio-latency-auto" style="margin-left: 10px;">Auto</button>
+				</div>
+
+				<h3 style="margin-top: 20px;">MIDI Input</h3>
+				<div style="margin-bottom: 10px;">
+					<span class="param-label">Pitch Center:</span>
+					<input type="number" class="midiPitchCenterInput" min="0" max="127" value="69" style="width: 60px;">
+				</div>
+
+				<h3 style="margin-top: 20px;">Partial Editing</h3>
+				<div style="margin-bottom: 10px;">
+					<span class="param-label">Partial Limit:</span>
+					<input type="number" class="partialLimitInput" min="0" max="999" value="0" style="width: 60px;">
+					<span style="font-size: 12px; color: #666;"> (0 = unlimited)</span>
+				</div>
+
+				<h3 style="margin-top: 20px;">Performance</h3>
+				<div style="margin-bottom: 10px;">
+					<label style="cursor: pointer;">
+						<input type="checkbox" class="performanceModeToggle"> Performance mode
+					</label>
+				</div>
+			</div>
+		</div>
+	</div>
+	<div class="page">
+		<div class="left">
+			<div class="pane">
+				<h2><div class="pane-toggle s">&#9658;</div>Global settings</h2>
+				<div class="pane-content global">
+					<div class="pane-item">
+						<div class="pane-item-text">Playback Pitch:</div>
+						<div class="playback-pitch-container">
+							<input type="number" class="playback-pitch-input" step="0.01" value="0" style="max-width:60px">
+							<span class="playback-pitch-unit">st</span>
+						</div>
+					</div>
+					<div class="pane-item">
+						<div class="pane-item-text">Playback Speed:</div>
+						<div class="playback-speed-container">
+							<input type="number" class="playback-speed-input" min="0.000001" step="0.1" value="1" style="max-width:51px">
+							<button class="playback-speed-preset" data-speed="0.5">0.5x</button>
+							<button class="playback-speed-preset active" data-speed="1">1x</button>
+							<button class="playback-speed-preset" data-speed="2">2x</button>
+						</div>
+					</div>
+				</div>
+			</div>
+			<div class="pane">
+				<h2><div class="pane-toggle s">&#9658;</div>Tracks</h2>
+				<div class="pane-content" id="pane-instruments">
+				</div>
+				<div class="add-instrument">+</div>
+			</div>
+		</div>
+		<div class="center">
+		<canvas id="canvasElement" width="100" height="100" tabindex="0"></canvas>
+			<button class="canvas-nav-btn canvas-nav-kbd-up" id="nav-up" title="Pan Up"><i class="fa fa-chevron-up"></i></button>
+			<button class="canvas-nav-btn canvas-nav-kbd-down" id="nav-down" title="Pan Down"><i class="fa fa-chevron-down"></i></button>
+			<div class="canvas-nav-kbd-zoom-group">
+				<button class="canvas-nav-btn canvas-nav-kbd-zoom-in" id="zoom-v-in" title="Zoom In Vertically">+</button>
+				<button class="canvas-nav-btn canvas-nav-kbd-zoom-out" id="zoom-v-out" title="Zoom Out Vertically">-</button>
+			</div>
+			<button class="canvas-nav-btn canvas-nav-time-left" id="nav-left" title="Pan Left"><i class="fa fa-chevron-left"></i></button>
+			<button class="canvas-nav-btn canvas-nav-time-right" id="nav-right" title="Pan Right"><i class="fa fa-chevron-right"></i></button>
+			<div class="canvas-nav-time-zoom-group">
+				<button class="canvas-nav-btn canvas-nav-time-zoom-in" id="zoom-h-in" title="Zoom In Horizontally">+</button>
+				<button class="canvas-nav-btn canvas-nav-time-zoom-out" id="zoom-h-out" title="Zoom Out Horizontally">-</button>
+			</div>
+			<div class="info-window">
+				<div>Note: <span class="info-window-note"></span></div>
+				<div>Frequency: <span class="info-window-frequency"></span></div>
+				<div>Closest chromatic: <span class="info-window-closest"></span></div>
+				<div>Time: <span class="info-window-time"></span></div>
+				<div>Tuning: <span class="info-window-tuning"></span></div>
+				<div>Grid: <span class="info-window-grid"></span></div>
+				<div class="partial-window">
+					<hr>
+					<div>Note: <span class="partial-window-note"></span></div>
+					<div>Partial: <span class="partial-window-partial"></span></div>
+					<div>Closest chromatic: <span class="partial-window-closest-chromatic"></span></div>
+					<div>Time: <span class="partial-window-time"></span></div>
+					<div>Length: <span class="partial-window-length"></span></div>
+				</div>
+				<div class="partial-window-selected">
+					<hr>
+					<div>Selected partials:</div>
+					<div class="content"></div>
+				</div>
+			</div>
+
+		</div>
+	</div>
+</main>
+<div id="startOverlay">
+	<div class="start-top-section">
+		<div class="project-select-header">
+			<h1>Spectra</h1>
+			<h3 class="project-select-subtitle">by Patrik Herman</h3>
+			<button class="new-project-btn" title="New Project"><span class="new-project-icon">+</span><span class="new-project-text">New Project</span></button>
+			<div class="new-project-inline" style="display: none;">
+				<input type="text" id="new-project-name" placeholder="Project Name">
+				<button class="create-project-btn">+</button>
+			</div>
+		</div>
+		<div class="project-select-container" id="projectSelectContainer" style="display: none;">
+			<div class="project-select-content">
+				<div class="project-list">
+					<p class="loading-text">Loading projects...</p>
+				</div>
+			</div>
+		</div>
+	</div>
+
+
+
+
+	<div class="landing-sections" id="landingSections" style="display: none;">
+
+		<div class="landing-divider"></div>
+
+
+		<div class="landing-section">
+			<p class="landing-text">A spectral/microtonal sequencer. Every note is a spectrum of partials, and pitch comes from sound rather than a fixed grid.</p>
+			<ul class="landing-list">
+				<li>Each note is a spectrum - every partial is its own entity</li>
+				<li>Edit in partial space by default, not note space</li>
+				<li>Change tuning and grid at any point in the piece</li>
+				<li>Create custom tunings, timbres, and grids - or import them</li>
+				<li>Live additive synthesis</li>
+				<li>Works with live MIDI/OSC input and output</li>
+				<li>Export to WAV, MIDI, MusicXML, and .scl/.tun</li>
+			</ul>
+		</div>
+
+		<div class="landing-section">
+			<h2>Docs</h2>
+			<a href="https://spectraapp.net/docs/Spectra_Documentation.pdf" target="_blank" class="landing-link">Interface guide, tuning systems, export formats, MIDI/OSC</a>
+		</div>
+
+		<div class="landing-section">
+			<h2>Changelog</h2>
+			<div class="changelog-entries">
+				<div class="changelog-entry">
+					<span class="changelog-version">1.1</span>
+					<span class="changelog-date">Feb 2026</span>
+					<ul class="changelog-list">
+						<li>Tuning import/export (JSON, SCL, TUN, KBM)</li>
+						<li>Ratio entry and custom frequency tuning types added to Mini</li>
+						<li>WAV export fixes (DC offset, Nyquist filtering, long export drift)</li>
+						<li>MIDI export uses actual velocity, import reads pitch bend</li>
+					</ul>
+				</div>
+				<div class="changelog-entry">
+					<span class="changelog-version">1.0</span>
+					<span class="changelog-date">Jan 2026</span>
+					<ul class="changelog-list">
+						<li>Synthesis engine rewritten as AudioWorklet (wavetable, 64 voices)</li>
+						<li>Mini/Full edition split with shared codebase</li>
+						<li>Undo/redo</li>
+						<li>Canvas rewrite (spatial indexing, gradient + layer caching)</li>
+						<li>Envelope system with per-partial overrides</li>
+						<li>Timeline event lanes (mid-composition tuning/grid changes)</li>
+						<li>Collaborative sessions (Socket.io)</li>
+						<li>Interactive tutorial</li>
+						<li>Computer keyboard mode</li>
+						<li>Electron desktop app with native OSC/UDP</li>
+					</ul>
+				</div>
+				<div class="changelog-entry">
+					<span class="changelog-version">0.5</span>
+					<span class="changelog-date">Dec 2025</span>
+					<ul class="changelog-list">
+						<li>Dynamic timbres (pitch-dependent partials, keypoint interpolation)</li>
+						<li>OSC support with device pairing (WebSocket + UDP)</li>
+						<li>Partial locking</li>
+						<li>Multi-track selection, automatic track colors (OKLab)</li>
+						<li>Loop region (draggable, resizable, Ctrl+L)</li>
+						<li>SysEx transport sync</li>
+						<li>Error reporting, feedback system, mobile fallback</li>
+					</ul>
+				</div>
+				<div class="changelog-entry">
+					<span class="changelog-version">0.4</span>
+					<span class="changelog-date">Dec 2025</span>
+					<ul class="changelog-list">
+						<li>Adaptive tuning system</li>
+						<li>Timeline markers, tuning changes, grid changes as events</li>
+						<li>Shift+T / Shift+G to create tuning/grid events</li>
+						<li>Multiple MIDI input support</li>
+						<li>SysEx microtonal pitch bending</li>
+						<li>MusicXML export improvements</li>
+					</ul>
+				</div>
+				<div class="changelog-entry">
+					<span class="changelog-version">0.3</span>
+					<span class="changelog-date">Dec 2025</span>
+					<ul class="changelog-list">
+						<li>MIDI I/O (input, output, port memory, note previewing)</li>
+						<li>Recording mode (magnet-aware)</li>
+						<li>Volume control with VU meter</li>
+						<li>Grid types: linear, exponential, from frequencies, from audio</li>
+						<li>Event markers on timeline</li>
+						<li>Keyboard shortcuts (H, R, M, L, Shift+M)</li>
+					</ul>
+				</div>
+				<div class="changelog-entry">
+					<span class="changelog-version">0.2</span>
+					<span class="changelog-date">Dec 2025</span>
+					<ul class="changelog-list">
+						<li>Playback (start/stop, timecode, auto-scroll)</li>
+						<li>Magnet mode (snap to grid/tuning)</li>
+						<li>Export overhaul (instrument selection, partial toggles)</li>
+						<li>WAV, MIDI, MusicXML export</li>
+					</ul>
+				</div>
+				<div class="changelog-entry">
+					<span class="changelog-version">0.1</span>
+					<span class="changelog-date">Nov 2025</span>
+					<ul class="changelog-list">
+						<li>Dark mode as default</li>
+						<li>Copy/paste/duplicate (Ctrl+C/V/X, Ctrl+drag)</li>
+						<li>Keyboard zoom (horizontal, vertical, both)</li>
+						<li>Drag on timeline, tooltips</li>
+						<li>Internal position system changed from pixels to partials</li>
+						<li>Left keyboard note preview</li>
+						<li>Switching to IndexedDB instead of localStorage</li>
+					</ul>
+				</div>
+				<div class="changelog-entry">
+					<span class="changelog-version">0.0.1</span>
+					<span class="changelog-date">Oct 2025</span>
+					<ul class="changelog-list">
+						<li>Project system (localStorage, save/load)</li>
+						<li>Audio analyzer for extracting tunings from recordings</li>
+						<li>Non-EDO tuning generator fixes</li>
+						<li>Codebase refactoring</li>
+					</ul>
+				</div>
+				<div class="changelog-entry">
+					<span class="changelog-version">0.0</span>
+					<span class="changelog-date">2024</span>
+					<ul class="changelog-list">
+						<li>Pitch-vs-time canvas with partials-based note editing</li>
+						<li>Additive synthesis via Tone.js</li>
+						<li>Basic tuning system support</li>
+					</ul>
+				</div>
+			</div>
+		</div>
+	</div>
+
+
+	<div class="landing-footer" id="landingFooter" style="display: none;">
+		<a href="https://ko-fi.com/spectraapp" target="_blank" class="kofi-link">Support development via Ko-fi</a>
+	</div>
+
+	<div class="startOverlayCenter" id="startOverlayLoading">
+		<p class="loading-text">Initializing...</p>
+	</div>
+</div>
+<div id="analyzerOverlay" class="hidden">
+	<div class="analyzerOverlayWindow" style="max-width: 560px;">
+		<div class="close">&#10006;</div>
+		<h3>Audio Analyzer</h3>
+		<div class="analyzer-container">
+			<input type="file" class="analyzer-file-input" accept=".wav,.mp3" style="display: none;">
+			<input type="button" class="analyzer-open-file" value="Open Audio File">
+			<span class="analyzer-file-name" style="margin-left: 10px; color: #666;"></span>
+
+			<br><br>
+			<div class="analyzer-spectrum-container">
+				<canvas id="analyzerChart"></canvas>
+			</div>
+			<div class="analyzer-freq-labels"></div>
+			<div style="margin: 20px 0 10px;">
+				<span class="param-label">Freq Range:</span>
+				<span class="analyzer-freq-range-display">20 Hz - 20k Hz</span>
+			</div>
+
+			<div style="margin-bottom: 10px;">
+				<canvas id="analyzerWaveform"></canvas>
+				<div style="margin-bottom: 5px;">
+					<span class="param-label">Time Range:</span>
+					<span class="analyzer-range-display">0.10s - 0.20s</span>
+				</div>
+			</div>
+
+			<div class="analyzer-controls">
+				<div style="margin-bottom: 10px;">
+					<span class="param-label">Threshold:</span>
+					<input type="range" class="analyzer-slider analyzer-threshold" min="0" max="1" step="0.001" value="0.3">
+					<span class="analyzer-threshold-value">0.008</span>
+				</div>
+				<div style="margin-bottom: 20px;">
+					<span class="param-label">Sensitivity:</span>
+					<input type="range" class="analyzer-slider analyzer-sensitivity" min="0" max="1" step="0.001" value="0.15">
+					<span class="analyzer-sensitivity-value">0.002</span>
+				</div>
+			</div>
+
+			<div class="analyzer-outputs">
+				<div class="analyzer-midi-output" title="Click to copy MIDI values">No harmonics detected</div>
+				<div class="analyzer-freq-output" title="Click to copy frequencies">No harmonics detected</div>
+			</div>
+
+			<input type="button" class="analyzer-generate-audio" value="Generate Audio">
+			<input type="button" class="analyzer-use-as-timbre" style="margin-left: 10px;" value="Save to Current Timbre">
+			<input type="button" class="analyzer-use-frequencies" style="margin-left: 10px;" value="Use Frequencies">
+		</div>
+	</div>
+</div>
+<input type="color" id="c" class="instrumentColorPicker">
+<div class="timeline-info-pane" style="display: none;"></div>
+<script type="text/javascript" src="shared/src/js/ext/Tone.js"></script>
+<script type="text/javascript" src="shared/src/js/io/webmidi.js"></script>
+<script type="text/javascript" src="src/js/io/osc.js"></script>
+<script type="text/javascript" src="src/js/app-globals.js"></script>
+<script type="text/javascript" src="shared/src/js/core/config.js"></script>
+<script type="text/javascript" src="shared/src/js/core/util.js"></script>
+<script type="text/javascript" src="shared/src/js/audio/envelope.js"></script>
+<script type="text/javascript" src="shared/src/js/data/util.js"></script>
+<script type="text/javascript" src="shared/src/js/data/presets-instruments.js"></script>
+<script type="text/javascript" src="shared/src/js/rendering/grid-system.js"></script>
+<script type="text/javascript" src="shared/src/js/ui/timeline.js"></script>
+<script type="text/javascript" src="shared/src/js/ui/midi-dragdrop.js"></script>
+<script type="text/javascript" src="shared/src/js/audio/dsp.js"></script>
+<script type="text/javascript" src="shared/src/js/audio/audio-analyzer.js"></script>
+
+<script type="text/javascript" src="shared/src/js/data/project-manager.js"></script>
+<script type="text/javascript" src="shared/src/js/core/db.js"></script>
+<script type="text/javascript" src="shared/src/js/core/undo-manager.js"></script>
+
+<script type="text/javascript" src="shared/src/js/audio/adaptive-tuning.js"></script>
+
+<script type="text/javascript" src="shared/src/js/ui/ui.js"></script>
+<script type="text/javascript" src="shared/src/js/ui/editor-lists.js"></script>
+<script type="text/javascript" src="shared/src/js/audio/playback-manager.js"></script>
+<script type="text/javascript" src="shared/src/js/rendering/canvas.js"></script>
+<script type="text/javascript" src="shared/src/js/rendering/midi.js"></script>
+<script type="text/javascript" src="shared/src/js/data/setup.js"></script>
+<script type="text/javascript" src="shared/src/js/core/spectra.js"></script>
+<script type="text/javascript" src="shared/src/js/audio/wav-export.js"></script>
+<script type="text/javascript" src="shared/src/js/ui/timeline-config.js"></script>
+
+
+<script>
+if (!window.electronAPI) {
+	var s = document.createElement('script');
+	s.src = '/socket.io/socket.io.js';
+	s.onerror = function() { console.log('Socket.io not available (offline mode)'); window.io = function() { return { on: function(){}, emit: function(){}, connect: function(){}, disconnect: function(){} }; }; };
+	document.head.appendChild(s);
+} else {
+	window.io = function() { return { on: function(){}, emit: function(){}, connect: function(){}, disconnect: function(){} }; };
+}
+</script>
+
+
+
+<template id="tpl-dialog">
+	<div class="spectra-dialog-overlay">
+		<div class="spectra-dialog">
+			<h3 class="spectra-dialog-title"></h3>
+			<div class="spectra-dialog-message"></div>
+			<div class="spectra-dialog-content"></div>
+			<div class="spectra-dialog-buttons">
+				<button class="spectra-dialog-btn spectra-dialog-btn-secondary dialog-cancel">Cancel</button>
+				<button class="spectra-dialog-btn spectra-dialog-btn-primary dialog-confirm">OK</button>
+			</div>
+		</div>
+	</div>
+</template>
+
+<template id="tpl-dialog-prompt">
+	<div class="spectra-dialog-overlay">
+		<div class="spectra-dialog prompt">
+			<h3 class="spectra-dialog-title"></h3>
+			<div class="spectra-dialog-message"></div>
+			<input type="text" class="spectra-dialog-input">
+			<div class="spectra-dialog-buttons">
+				<button class="spectra-dialog-btn spectra-dialog-btn-secondary dialog-cancel">Cancel</button>
+				<button class="spectra-dialog-btn spectra-dialog-btn-primary dialog-confirm">OK</button>
+			</div>
+		</div>
+	</div>
+</template>
+
+<template id="tpl-midi-device">
+	<div class="midi-device-item">
+		<span class="midi-device-name"></span>
+		<span class="midi-activity-indicator"></span>
+		<button class="midi-remove-btn">&times;</button>
+	</div>
+</template>
+
+<template id="tpl-export-format">
+	<div class="spectra-dialog-overlay">
+		<div class="spectra-dialog prompt">
+			<h3 class="setup-dialog-title">Export Tuning</h3>
+			<p class="setup-dialog-subtitle"></p>
+			<div class="export-format-buttons">
+				<button class="export-btn primary" data-format="json">
+					<strong>.json</strong>
+					<span class="export-btn-hint">Spectra native format</span>
+				</button>
+				<button class="export-btn" data-format="scl">
+					<strong>.scl</strong>
+					<span class="export-btn-hint">Scala (Surge XT)</span>
+				</button>
+				<button class="export-btn" data-format="tun">
+					<strong>.tun</strong>
+					<span class="export-btn-hint">Serum, Vital, Omnisphere, Diva, Zebra</span>
+				</button>
+				<button class="export-btn" data-format="kbm">
+					<strong>.kbm</strong>
+					<span class="export-btn-hint">Keyboard mapping (Scala)</span>
+				</button>
+			</div>
+			<button class="export-cancel spectra-dialog-btn spectra-dialog-btn-secondary">Cancel</button>
+		</div>
+	</div>
+</template>
+
+<template id="tpl-export-midi-prompt">
+	<div class="spectra-dialog-overlay">
+		<div class="spectra-dialog prompt">
+			<h3 class="setup-dialog-title"></h3>
+			<p class="setup-dialog-subtitle">
+				Choose the center MIDI note. The closest tuning note will be mapped to this key,
+				and other notes will be mapped outward from there.
+			</p>
+			<div class="setup-form-group">
+				<label class="setup-form-label">Center MIDI Note</label>
+				<input type="number" class="center-midi-input setup-form-input" value="60" min="0" max="127">
+				<span class="setup-form-hint">60 = Middle C (C3)</span>
+			</div>
+			<div class="setup-btn-row">
+				<button class="export-confirm-btn spectra-dialog-btn spectra-dialog-btn-primary btn-flex">Export</button>
+				<button class="export-cancel-btn spectra-dialog-btn spectra-dialog-btn-secondary">Cancel</button>
+			</div>
+		</div>
+	</div>
+</template>
+
+</body>
+</html>

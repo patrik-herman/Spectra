@@ -1,0 +1,128 @@
+{
+  "name": "spectra",
+  "version": "1.0.0",
+  "description": "Spectra - Spectral Sequencer",
+  "main": "main.js",
+  "author": "Patrik Herman",
+  "license": "CC-BY-NC-SA-4.0",
+  "scripts": {
+    "start": "electron .",
+    "prepare": "node prepare-build.js",
+    "generate-icon": "node generate-icon.js",
+    "build": "npm run generate-icon && npm run prepare && electron-builder",
+    "build:win": "npm run generate-icon && npm run prepare && electron-builder --win",
+    "build:mac": "npm run generate-icon && npm run prepare && electron-builder --mac",
+    "build:linux": "npm run generate-icon && npm run prepare && electron-builder --linux"
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.1.8",
+    "png-to-ico": "^3.0.1"
+  },
+  "optionalDependencies": {
+    "bonjour-service": "^1.2.1"
+  },
+  "build": {
+    "appId": "com.spectra.app",
+    "productName": "Spectra",
+    "copyright": "Copyright (c) 2024-2026 Patrik Herman",
+    "icon": "assets/icon.png",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "osc-udp.js",
+      "app/**/*",
+      "assets/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "assets",
+        "to": "assets"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/icon.ico",
+      "publisherName": "Patrik Herman",
+      "legalTrademarks": "Spectra is a trademark of Patrik Herman"
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
+      "icon": "assets/icon.png",
+      "category": "public.app-category.music",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
+      "extendInfo": {
+        "NSLocalNetworkUsageDescription": "Spectra sends and receives OSC messages to devices and software on your local network."
+      }
+    },
+    "linux": {
+      "target": "AppImage",
+      "icon": "assets/icon.png",
+      "category": "Audio"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Spectra",
+      "installerIcon": "assets/icon.ico",
+      "uninstallerIcon": "assets/icon.ico",
+      "installerHeaderIcon": "assets/icon.ico",
+      "deleteAppDataOnUninstall": false,
+      "license": "build/license.txt",
+      "menuCategory": "Music Production"
+    },
+    "dmg": {
+      "contents": [
+        {
+          "x": 130,
+          "y": 220
+        },
+        {
+          "x": 410,
+          "y": 220,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ],
+      "window": {
+        "width": 540,
+        "height": 400
+      },
+      "title": "Spectra ${version}",
+      "icon": "assets/icon.png"
+    },
+    "fileAssociations": [
+      {
+        "ext": "spectra.json",
+        "name": "Spectra Project",
+        "description": "Spectra Project File",
+        "mimeType": "application/json",
+        "role": "Editor"
+      }
+    ]
+  }
+}

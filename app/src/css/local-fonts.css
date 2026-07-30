@@ -1,0 +1,64 @@
+
+@font-face {
+	font-family: 'Lato';
+	font-style: normal;
+	font-weight: 300;
+	font-display: swap;
+	src: url('../fonts/Lato/Lato-Light.ttf') format('truetype');
+}
+
+@font-face {
+	font-family: 'Lato';
+	font-style: normal;
+	font-weight: 400;
+	font-display: swap;
+	src: url('../fonts/Lato/Lato-Regular.ttf') format('truetype');
+}
+
+@font-face {
+	font-family: 'Lato';
+	font-style: italic;
+	font-weight: 400;
+	font-display: swap;
+	src: url('../fonts/Lato/Lato-Italic.ttf') format('truetype');
+}
+
+@font-face {
+	font-family: 'Lato';
+	font-style: normal;
+	font-weight: 700;
+	font-display: swap;
+	src: url('../fonts/Lato/Lato-Bold.ttf') format('truetype');
+}
+
+@font-face {
+	font-family: 'Lato';
+	font-style: normal;
+	font-weight: 900;
+	font-display: swap;
+	src: url('../fonts/Lato/Lato-Black.ttf') format('truetype');
+}
+
+@font-face {
+	font-family: 'Sulphur Point';
+	font-style: normal;
+	font-weight: 300;
+	font-display: swap;
+	src: url('../fonts/SulphurPoint/SulphurPoint-Light.ttf') format('truetype');
+}
+
+@font-face {
+	font-family: 'Sulphur Point';
+	font-style: normal;
+	font-weight: 400;
+	font-display: swap;
+	src: url('../fonts/SulphurPoint/SulphurPoint-Regular.ttf') format('truetype');
+}
+
+@font-face {
+	font-family: 'Sulphur Point';
+	font-style: normal;
+	font-weight: 700;
+	font-display: swap;
+	src: url('../fonts/SulphurPoint/SulphurPoint-Bold.ttf') format('truetype');
+}

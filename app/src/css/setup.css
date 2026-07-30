@@ -1,0 +1,426 @@
+.setup-page {
+	overflow-y: auto;
+}
+.timbre-list-container,
+.grid-list-container {
+	display: none;
+}
+
+.setup-info-text {
+	color: #666;
+	font-size: 12px;
+}
+.setup-description {
+	margin-bottom: 12px;
+	color: #777;
+	font-size: 12px;
+}
+.midi-panic {
+	color: #ef4d4d;
+	border-color: #ef4d4d;
+}
+.midi-panic:hover {
+	background: #333;
+}
+.setup-row {
+	margin: 15px 0;
+}
+
+.setup-row-flex {
+	margin: 10px 0;
+	display: flex;
+	align-items: center;
+	gap: 15px;
+}
+.setup-form-box {
+	margin: 20px 0;
+	padding: 15px;
+}
+.setup-form-box-header {
+	margin: 0 0 12px 0;
+	color: #aaa;
+}
+.setup-form-box-header b {
+	color: #ccc;
+}
+.setup-label-flex {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	cursor: pointer;
+	min-width: 130px;
+}
+
+.midi-status {
+	font-weight: bold;
+	color: #6f6;
+}
+.activity-indicator.active {
+	background: #6f6;
+}
+.setup-code-block {
+	background: #151515;
+	padding: 10px;
+	font-size: 12px;
+	overflow-x: auto;
+	margin: 10px 0;
+}
+
+.setup-empty-list {
+	color: #666;
+	font-size: 12px;
+	padding: 8px 0;
+}
+.setup-instructions {
+	margin: 0;
+	padding-left: 20px;
+	font-size: 12px;
+	color: #aaa;
+}
+.setup-instructions li {
+	margin: 5px 0;
+}
+.setup-instructions a {
+	color: #6cf;
+}
+
+.setup-hr {
+	border-color: #444;
+	margin: 25px 0;
+}
+.setup-hr-thin {
+	border-color: #444;
+	margin: 8px 0;
+}
+.tuning-midi-preview-container {
+	margin: 10px 0;
+}
+.microtune-controls-scroll {
+	max-height: 300px;
+	overflow-y: auto;
+}
+.grid-hint {
+	color: #888;
+	font-size: 12px;
+	margin-left: 10px;
+}
+.grid-file-waveform {
+	display: block;
+	margin-top: 10px;
+	background: #1a1a1a;
+}
+.grid-file-name {
+	color: #888;
+	font-size: 12px;
+}
+.grid-freq-textarea {
+	width: 100%;
+	max-width: 400px;
+}
+.io-section-box {
+	margin: 20px 0;
+	padding: 15px;
+}
+.io-section-box-alt {
+	margin-top: 15px;
+	padding: 15px;
+}
+.midi-inputs-list {
+	margin-top: 10px;
+}
+.midi-tracks-custom {
+	display: none;
+}
+.midi-checkbox-item {
+	display: flex;
+	align-items: center;
+	margin: 5px 0;
+	cursor: pointer;
+}
+.midi-checkbox-item input {
+	margin-right: 8px;
+}
+.midi-partials-input {
+	display: none;
+	width: 100%;
+	margin-top: 10px;
+	padding: 8px;
+	background: #181818;
+	border: none;
+	color: #fff;
+}
+
+.analyzerOverlayWindow {
+	max-width: 560px;
+}
+.analyzer-file-input {
+	display: none;
+}
+.analyzer-file-name {
+	margin-left: 10px;
+	color: #666;
+}
+
+.analyzer-chart-container {
+	height: 300px;
+	position: relative;
+	overflow: hidden;
+}
+.analyzer-control-row {
+	margin-bottom: 10px;
+}
+.analyzer-slider {
+	width: 280px;
+}
+.export-buttons-row {
+	margin-top: 20px;
+	display: flex;
+	gap: 10px;
+}
+.musicxml-options {
+	display: none;
+	margin-top: 15px;
+	padding: 10px;
+	background: #292929;
+}
+.musicxml-tuning-select {
+	display: none;
+	margin-top: 10px;
+}
+.musicxml-hint {
+	margin-top: 10px;
+	font-size: 12px;
+	color: #888;
+}
+
+.input-xs { width: 80px; }
+.input-sm { width: 100px; }
+.input-md { width: 150px; }
+.input-lg { width: 200px; }
+.input-xl { width: 250px; }
+.input-min-lg { min-width: 200px; }
+.input-min-xl { min-width: 250px; }
+.mt-0 { margin-top: 0; }
+
+.visually-hidden {
+	position: absolute;
+	left: -9999px;
+	opacity: 0;
+}
+.startOverlayCenter {
+	text-align: center;
+}
+.startOverlayCenter p {
+	color: #888;
+	font-size: 12px;
+}
+
+.timeline-info-pane {
+	display: none;
+}
+
+.volume-icon-muted {
+	display: none;
+}
+.volume-mute-btn.muted .volume-icon {
+	display: none;
+}
+.volume-mute-btn.muted .volume-icon-muted {
+	display: inline;
+}
+.playback-speed-container {
+	display: flex;
+	align-items: center;
+	gap: 5px;
+}
+.playback-speed-preset {
+	padding: 4px 6px;
+	font-size: 12px;
+}
+
+.osc-delete-modal,
+.osc-add-device-modal {
+	position: fixed;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	z-index: 10002;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: #030303b3;
+}
+.osc-modal-content {
+	background: #1a1a1a;
+	padding: 25px;
+	max-width: 400px;
+	width: 90%;
+}
+.osc-modal-content.narrow {
+	max-width: 350px;
+	text-align: center;
+}
+.osc-modal-content h3 {
+	margin: 0 0 15px 0;
+	padding: 0 0 10px 0;
+	font-size: 18px;
+	font-weight: 400;
+	color: #fff;
+}
+.osc-modal-content p {
+	color: #888;
+	font-size: 12px;
+	margin-bottom: 15px;
+}
+.osc-modal-config {
+	margin-bottom: 15px;
+	padding: 15px;
+	background: #252525;
+}
+.osc-modal-config label {
+	display: block;
+	margin-bottom: 6px;
+	color: #aaa;
+	font-size: 12px;
+}
+.osc-modal-config input {
+	padding: 8px;
+	background: #1a1a1a;
+	border: none;
+	color: #fff;
+	font-size: 12px;
+}
+.osc-modal-config input:focus {
+	outline: none;
+	border-color: #2561c1;
+}
+.osc-modal-pairing-code {
+	font-family: monospace;
+	font-size: 28px;
+	color: #4a9eff;
+	letter-spacing: 6px;
+}
+.osc-modal-code-timer {
+	margin: 8px 0 0 0;
+	color: #666;
+	font-size: 12px;
+}
+.osc-modal-actions {
+	display: flex;
+	gap: 10px;
+	justify-content: flex-end;
+	margin-top: 15px;
+}
+.osc-modal-actions button {
+	padding: 10px 20px;
+	border: none;
+	cursor: pointer;
+	font-size: 12px;
+}
+.osc-modal-cancel {
+	background: #333;
+	color: #aaa;
+}
+.osc-modal-cancel:hover {
+	background: #444;
+	color: #fff;
+}
+.osc-modal-add,
+.osc-modal-generate-code {
+	background: #2561c1;
+	color: #fff;
+}
+.osc-modal-add:hover,
+.osc-modal-generate-code:hover {
+	background: #444;
+}
+
+.osc-modal-confirm-delete {
+	background: #c44;
+	color: #fff;
+}
+.osc-modal-confirm-delete:hover {
+	background: #a33;
+}
+.osc-section {
+	margin-top: 15px;
+	padding-top: 15px;
+}
+.osc-no-devices {
+	color: #666;
+	font-size: 12px;
+	font-style: italic;
+	padding: 10px 0;
+}
+.osc-device-item {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 6px 0;
+}
+.osc-device-item:last-child {
+	border-bottom: none;
+}
+
+.osc-device-name {
+	flex: 1;
+	font-size: 12px;
+	color: #ccc;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.osc-pairing-modal {
+	position: fixed;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	z-index: 10001;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: #040404;
+}
+.osc-pairing-modal.hidden {
+	display: none;
+}
+.osc-pairing-content {
+	background: #1a1a1a;
+	padding: 30px;
+	text-align: center;
+	max-width: 400px;
+}
+.osc-pairing-content h3 {
+	margin: 0 0 10px 0;
+	color: #fff;
+}
+
+.osc-pairing-content p {
+	color: #888;
+	font-size: 12px;
+	margin: 0 0 20px 0;
+}
+.osc-pairing-key {
+	font-family: monospace;
+	font-size: 36px;
+	font-weight: bold;
+	color: #4a9eff;
+	letter-spacing: 8px;
+	padding: 20px;
+	background: #252525;
+	margin-bottom: 15px;
+}
+.osc-pairing-cancel {
+	padding: 8px 20px;
+	background: #333;
+	border: none;
+	color: #aaa;
+	cursor: pointer;
+}
+
+.osc-pairing-cancel:hover {
+	background: #444;
+	color: #fff;
+}

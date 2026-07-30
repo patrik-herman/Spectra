@@ -1,0 +1,76 @@
+SPECTRA PRIVACY POLICY
+
+Last Updated: January 2026
+
+Patrik Herman ("we", "us", or "our") operates the Spectra software application (the "Software"). This page informs you of our policies regarding the collection, use, and disclosure of personal data when you use the Software.
+
+1. DATA COLLECTION
+
+Local Data Storage
+The Software stores project files, settings, and preferences locally on your device. This data never leaves your computer unless you explicitly export or share it.
+
+We DO NOT collect:
+- Personal identification information
+- Usage analytics or telemetry
+- Browsing history
+- Location data
+- Any data transmitted over the network for analytics purposes
+
+Network Features
+The Software may use network features for:
+- OSC (Open Sound Control) communication with other music software and hardware
+- Optional cloud backup features (if enabled by user)
+- Software update checks (version information only)
+
+2. DATA STORAGE
+
+All project data is stored locally on your device:
+- Windows: %APPDATA%\Spectra\projects\
+- macOS: ~/Library/Application Support/Spectra/projects/
+
+You have full control over this data and can delete it at any time.
+
+3. THIRD-PARTY SERVICES
+
+The Software does not integrate with any third-party analytics, advertising, or tracking services.
+
+4. CRASH RECOVERY
+
+The Software may temporarily store recovery data locally when the application is running. This data:
+- Is stored only on your local device
+- Is automatically cleared on successful app exit
+- Is used only to recover unsaved work after unexpected closure
+
+5. OSC NETWORK COMMUNICATION
+
+When using OSC features, the Software:
+- Communicates only with devices/software you explicitly configure
+- Does not transmit any data to our servers
+- Uses standard OSC protocol over local network
+
+6. DATA SECURITY
+
+All data remains on your local device. We implement appropriate security measures within the Software to protect against unauthorized access.
+
+7. CHILDREN'S PRIVACY
+
+The Software does not knowingly collect data from anyone, including children under 13.
+
+8. CHANGES TO THIS POLICY
+
+We may update this Privacy Policy from time to time. Changes will be posted within the Software's documentation.
+
+9. CONTACT US
+
+If you have questions about this Privacy Policy:
+Email: privacy@spectraapp.net
+Website: https://spectraapp.net
+
+10. YOUR RIGHTS
+
+Since we do not collect personal data:
+- There is no personal data for us to delete, modify, or export
+- You maintain full control over all data stored locally on your device
+- You can delete all Software data by uninstalling the application
+
+This Privacy Policy is designed to be transparent about our minimal data practices. The Software is designed to respect your privacy by keeping all your creative work local and under your control.

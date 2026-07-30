@@ -1,0 +1,59 @@
+
+body:not([data-edition="full"]) main .page .center {
+	right: 0;
+}
+body:not([data-edition="full"]) .canvas-nav-kbd-up {
+	top: 25px;
+}
+
+
+body:not([data-edition="full"]) .timeline-info-global-label {
+	display: none !important;
+}
+
+.info-window {
+	position: absolute;
+	top: 33px;
+	right: 10px;
+	width: 150px;
+	z-index: 1001;
+}
+body[data-edition="full"] .info-window {
+	top: 60px;
+}
+body:not([data-edition="full"]) .right-panels-container {
+	top: unset;
+}
+
+body:not([data-edition="full"]) .switch-magnet .switch-checkbox + label,
+body:not([data-edition="full"]) .switch-headphones .switch-checkbox + label {
+}
+
+body:not([data-edition="full"]) .markers-lane,
+body:not([data-edition="full"]) .loop-region {
+	display: none !important;
+}
+
+body:not([data-edition="full"]) .setup-tab[value="Things"] {
+	display: none !important;
+}
+
+body:not([data-edition="full"]) .spatial-imager-section {
+	display: none !important;
+}
+body:not([data-edition="full"]) .io-tab[value="API"] {
+	display: none !important;
+}
+body:not([data-edition="full"]) .io-section[data-section="4"] {
+	display: none !important;
+}
+body:not([data-edition="full"]) .io-flow-input[data-type="api-in"],
+body:not([data-edition="full"]) .io-flow-output[data-type="api-out"] {
+	display: none !important;
+}
+body:not([data-edition="full"]) .tuning-type-full {
+	display: none !important;
+}
+body:not([data-edition="full"]) .grid-type-full {
+	display: none !important;
+}
