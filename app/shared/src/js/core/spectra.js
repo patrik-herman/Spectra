@@ -1488,7 +1488,13 @@ async function togglePlayback() {
 		if (playbackUIPlay.dataset.type === 'return') playback.time = playback.timeOld;
 	}
 }
+var macCtrl = e => {
+	if (e.metaKey && !e.ctrlKey) {
+		try { Object.defineProperty(e, 'ctrlKey', { value: true, configurable: true }); } catch(_) {}
+	}
+};
 document.addEventListener('keydown', e => {
+	macCtrl(e);
 
 	var isInInput = e.target && e.target.tagName &&
 		(e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) &&
@@ -2030,6 +2036,7 @@ document.addEventListener('keydown', e => {
 	}
 });
 document.addEventListener('keyup', e => {
+	macCtrl(e);
 	if (Spectra.callHooks('keyUp', e, { shiftKey: shiftKey, ctrlKey: ctrlKey, altKey: altKey })) {
 		e.preventDefault();
 		shiftKey = e.shiftKey;
