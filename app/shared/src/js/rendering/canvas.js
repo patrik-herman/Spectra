@@ -7,11 +7,15 @@
 
 
 var timeRegionHeight = 16,
-	octaveSpacing = 12*10,
+	octaveSpacing = 12*20,
 	octaveSpacingStep = octaveSpacing / 12,
-	barSize = 60,  // Predvolená úroveň priblíženia v pixeloch na jednu dobu.
+	barSize = 200,  // Predvolená úroveň priblíženia v pixeloch na jednu dobu.
 	gridSize = 8,
 	resizingRegionSize = 5,
+	pitchViewMax = 180,
+	pitchViewMin = -36,
+	pitchEditMax = pitchViewMax - 2,
+	pitchEditMin = pitchViewMin + 2,
 	stepY, stepH,
 	lastDBsaveTime = 0,
 	selectedPartialsText = "",
@@ -85,6 +89,8 @@ var timeRegionHeight = 16,
 	partialColorCache = new Map(),
 	partialColorCacheMaxSize = 500,
 	partialHueRotationMax = 130, // max stupňov otočenia pri najnižšej amplitúde.
+	noteShadeL = [0, 0.13, -0.14, 0.06, -0.07, 0.18, -0.2, 0.1, -0.11, 0.15, -0.17, 0.03],
+	noteShadeHue = [0, 12, -12, 7, -7, 14, -14, 10, -10, 13, -13, 4],
 
 	pathPool = [],
 	pathPoolIndex = 0,
@@ -157,6 +163,18 @@ function getPartialColorByAmplitude(baseColor, amplitude) {
 	partialColorCache.set(cacheKey, rotatedColor);
 
 	return rotatedColor;
+}
+
+function getNoteIdColor(baseColor, noteIdx) {
+	var bucket = ((noteIdx % 12) + 12) % 12;
+	if (bucket === 0) return baseColor;
+	var cacheKey = baseColor + '_n' + bucket;
+	if (partialColorCache.has(cacheKey)) {
+		return partialColorCache.get(cacheKey);
+	}
+	var shadedColor = rotateHexColor(baseColor, noteShadeHue[bucket], noteShadeL[bucket], 1 - Math.abs(noteShadeL[bucket]) * 2.2);
+	partialColorCache.set(cacheKey, shadedColor);
+	return shadedColor;
 }
 
 // Pomocné funkcie priestorového indexu na zisťovanie parciálu pod kurzorom v čase O(1).
@@ -289,7 +307,7 @@ var Canvas = {
 	rollSize: -1,
 	canvas: null,
 	octaveSpacing: octaveSpacing, // V pixeloch
-	offy: 8 * octaveSpacing,  // Predvolená vertikálna pozícia, centrovaná okolo C4.
+	offy: 6.5 * octaveSpacing,  // Predvolená vertikálna pozícia, centrovaná okolo C4.
 	pitchToY: (pitchValue) => Canvas.offy - pitchValue * octaveSpacingStep,
 	partialBrightness: 1,
 	partialBrightnessOffset: 0, // -1 až 1, pripočíta sa k vypočítanej priesvitnosti parciálu.
@@ -1352,6 +1370,7 @@ var Canvas = {
 
 					var midiNoteData = MIDInote[N_DATA].partials;
 					var midiNoteDataLen = midiNoteData.length;
+					var noteIdColor = getNoteIdColor(instrumentActualColor, jC3);
 
 					var marqueeWinner = -1;
 					if (isSelecting && instrument.selected) {
@@ -1469,9 +1488,9 @@ var Canvas = {
 						// Pri nevybraných stopách si aktívne parciály zachovávajú farbu, zatiaľ čo neaktívne sú sivé.
 						var isActivePartial = kC3 === activePartialIdx;
 						var baseColor = isTrackSelected
-							? instrumentActualColor
-							: (isActivePartial ? instrumentActualColor : instrumentGreyColor);
-						var partialColor = partial[6] ? '#ff4444' : getPartialColorByAmplitude(baseColor, partialAmp);
+							? noteIdColor
+							: (isActivePartial ? noteIdColor : instrumentGreyColor);
+						var partialColor = partial[6] ? '#ff4444' : baseColor;
 						var partialAlphaFinal = partial[6] ? 1 : (isTrackSelected
 							? (isActivePartial ? 1 : alpha)
 							: alpha * NON_SELECTED_PARTIAL_ALPHA);
@@ -1508,7 +1527,7 @@ var Canvas = {
 							if (hasEnvelopeData && noteWFull > 30 && !Canvas.skipGradients) {
 								const env = Envelope.getForPartial(timbreData, kC3 + 1);
 								const noteDuration = MIDInote[N_DUR] || 1;
-								var gradientColor = partial[6] ? '#ff4444' : getPartialColorByAmplitude(baseColor, partialAmp);
+								var gradientColor = partial[6] ? '#ff4444' : baseColor;
 								const gradient = getCachedGradient(
 									ctx, drawXFull, noteWFull,
 									gradientColor,
@@ -1573,7 +1592,6 @@ var Canvas = {
 									spotlightPath.rect(60.5 + noteX, noteY, noteW, noteH);
 								}
 							}
-
 						}
 					}
 
@@ -1588,8 +1606,8 @@ var Canvas = {
 								var originalX = trackedNote[0];
 								var targetX = originalX + (select.offsetX - select.initialDragX) / barSize;
 
-								if (shiftKey) {
-									// Pri Shift+ťahaní sa objekt prichytáva k mriežke.
+								if (!shiftKey) {
+									// Pri ťahaní sa objekt prichytáva k mriežke.
 									const trackIdx = typeof Timeline !== 'undefined' ? Timeline.getCurrentTrackIdx() : 0;
 									var snappedX = snapTimeToGrid(targetX, trackIdx, Canvas.snapThreshold);
 									MIDInote[N_TIME] = snappedX;
@@ -1668,7 +1686,7 @@ var Canvas = {
 										const direction = noteDelta > 0 ? 1 : -1;
 										var result = findLockedConstrainedPosition(iC3, jC3, direction, movedPartialIdx);
 										if (result) {
-											MIDInote[N_PITCH] = result.newNote2;
+											MIDInote[N_PITCH] = Math.max(pitchEditMin, Math.min(pitchEditMax, result.newNote2));
 											select.dragChanged = true;
 											var specData = getSpectrumDataSafe(iC3);
 											const baseRatio = specData[MIDInote[N_PARTIAL]-1] ? specData[MIDInote[N_PARTIAL]-1][0] : MIDInote[N_PARTIAL];
@@ -1733,7 +1751,7 @@ var Canvas = {
 											const partialRatio = MIDInotePartialsSpec[preservedPartialNum - 1] ?
 												MIDInotePartialsSpec[preservedPartialNum - 1][0] : 1;
 
-											var newNote2 = freq2note(targetFreq * partialRatio);
+											var newNote2 = Math.max(pitchEditMin, Math.min(pitchEditMax, freq2note(targetFreq * partialRatio)));
 
 											MIDInote[N_PITCH] = newNote2;
 											MIDInote[N_PARTIAL] = preservedPartialNum;
@@ -1793,7 +1811,7 @@ var Canvas = {
 
 											const MIDInotePartialsSpec = getPartialsForNote(freq2note(note2freq(targetFundamentalPitch) * (preservedPartialNum)), preservedPartialNum);
 											const partialRatio = MIDInotePartialsSpec[preservedPartialNum - 1]?.[0] || preservedPartialNum;
-											const newNotePitch = freq2note(note2freq(targetFundamentalPitch) * partialRatio);
+											const newNotePitch = Math.max(pitchEditMin, Math.min(pitchEditMax, freq2note(note2freq(targetFundamentalPitch) * partialRatio)));
 
 											if (MIDInote[N_PITCH] !== newNotePitch) {
 												MIDInote[N_PITCH] = newNotePitch;
@@ -1868,9 +1886,9 @@ var Canvas = {
 										// Vyplnený box; pri nevybraných stopách si aktívne parciály zachovávajú farbu, neaktívne sú sivé.
 										var moveIsActivePartial = kC3 === MIDInote[N_PARTIAL] - 1;
 										var moveBaseColor = isTrackSelected
-											? instrumentActualColor
-											: (moveIsActivePartial ? instrumentActualColor : instrumentGreyColor);
-										const fillColor = partial[6] ? '#ff4444' : getPartialColorByAmplitude(moveBaseColor, pAmp);
+											? noteIdColor
+											: (moveIsActivePartial ? noteIdColor : instrumentGreyColor);
+										const fillColor = partial[6] ? '#ff4444' : moveBaseColor;
 										var movePartialAlpha = isTrackSelected ? partialAlpha : partialAlpha * 0.6;
 										if (hasEnvelopeData && drawW > 60) {
 											const env = Envelope.getForPartial(timbreData, kC3 + 1);
@@ -1932,7 +1950,7 @@ var Canvas = {
 								var originalW = trackedNoteForResize[1];
 								var targetW = originalW + (select.offsetX - select.initialDragX) / barSize;
 
-								if (shiftKey) {
+								if (!shiftKey) {
 									const trackIdx = typeof Timeline !== 'undefined' ? Timeline.getCurrentTrackIdx() : 0;
 									var targetEnd = MIDInote[N_TIME] + targetW;
 									var snappedEnd = snapTimeToGrid(targetEnd, trackIdx, Canvas.snapThreshold);
@@ -1944,7 +1962,7 @@ var Canvas = {
 									MIDInote[N_DUR] = targetW;
 								}
 							}
-							
+
 							// Prichytávanie v režime magnetu z druhej strany.
 							if (Canvas.magnetMode && allNoteEdges.length > 0 && !shiftKey) {
 								const noteEnd = MIDInote[N_TIME] + MIDInote[N_DUR];
@@ -1992,9 +2010,9 @@ var Canvas = {
 										// Vyplnený box; pri nevybraných stopách si aktívne parciály zachovávajú farbu, neaktívne sú sivé.
 										var resizeIsActivePartial = kC3 === MIDInote[N_PARTIAL] - 1;
 										var resizeBaseColor = isTrackSelected
-											? instrumentActualColor
-											: (resizeIsActivePartial ? instrumentActualColor : instrumentGreyColor);
-										const fillColor = partial[6] ? '#ff4444' : getPartialColorByAmplitude(resizeBaseColor, pAmp);
+											? noteIdColor
+											: (resizeIsActivePartial ? noteIdColor : instrumentGreyColor);
+										const fillColor = partial[6] ? '#ff4444' : resizeBaseColor;
 										var resizePartialAlpha = isTrackSelected ? partialAlpha : partialAlpha * 0.6;
 										if (hasEnvelopeData && drawW > 60) {
 											const env = Envelope.getForPartial(timbreData, kC3 + 1);
@@ -2269,7 +2287,7 @@ var Canvas = {
 			
 			
 			// Prerušované čiary prichytenia pri režime magnetu alebo pri prichytávaní k mriežke cez Shift+ťahanie.
-			if (Canvas.snapLines.length > 0 && isMovingOrResizing && (Canvas.magnetMode || shiftKey)) {
+			if (Canvas.snapLines.length > 0 && isMovingOrResizing && (Canvas.magnetMode || !shiftKey)) {
 				ctx.save();
 				ctx.strokeStyle = '#888';
 				ctx.lineWidth = 1;
@@ -2358,8 +2376,23 @@ var Canvas = {
 
 	// Jedno úplné vykreslenie, napríklad po zmene veľkosti okna, aby sa
 	// práve vyprázdnené plátno nikdy nezobrazilo ako prázdny snímok (blikanie).
+	clampVerticalView: () => {
+		var h = Canvas.cssHeight || 0;
+		var range = pitchViewMax - pitchViewMin;
+		if (h > 0 && octaveSpacingStep * range < h) {
+			octaveSpacingStep = h / range;
+			octaveSpacing = octaveSpacingStep * 12;
+		}
+		var step = octaveSpacingStep;
+		if (!(step > 0)) return;
+		var maxOffy = pitchViewMax * step;
+		var minOffy = h + pitchViewMin * step;
+		Canvas.offy = Math.min(maxOffy, Math.max(minOffy, Canvas.offy));
+	},
+
 	renderFrame: () => {
 		if (!ctx || !Canvas.canvas) return;
+		Canvas.clampVerticalView();
 		Canvas.reset();
 		spatialIndexClear();
 		spatialIndex.frameCounter++;
@@ -2547,17 +2580,13 @@ var Canvas = {
 
 				// Kurzor nad ľavým rohom.
 				if (px - resizingRegionSize < x && x < px + resizingRegionSize) {
-					if (p[4] || p[5]) {
-						Canvas.canvas.style.cursor = 'ew-resize';
-						overResizeEdge = true;
-					}
+					Canvas.canvas.style.cursor = 'ew-resize';
+					overResizeEdge = true;
 				}
 				// Kurzor nad pravým rohom.
 				else if (px + pw - resizingRegionSize < x && x < px + pw + resizingRegionSize) {
-					if (p[4] || p[5]) {
-						Canvas.canvas.style.cursor = 'ew-resize';
-						overResizeEdge = true;
-					}
+					Canvas.canvas.style.cursor = 'ew-resize';
+					overResizeEdge = true;
 				}
 			}
 		}
@@ -2660,12 +2689,15 @@ var Canvas = {
 
 				Canvas._captureNoteBefore(i, j);
 
-				note[N_PITCH] = Math.max(-24, Math.min(150, note[N_PITCH] + amount));
+				var clampedPitch = Math.max(pitchEditMin, Math.min(pitchEditMax, note[N_PITCH] + amount));
+				var appliedAmount = clampedPitch - note[N_PITCH];
+				if (appliedAmount === 0) continue;
+				note[N_PITCH] = clampedPitch;
 				changed = true;
 
 				if (note[N_DATA] && note[N_DATA].partials) {
 					for (let k = 0; k < note[N_DATA].partials.length; k++) {
-						note[N_DATA].partials[k][P_Y] += amount;
+						note[N_DATA].partials[k][P_Y] += appliedAmount;
 					}
 				}
 			}
@@ -2805,6 +2837,7 @@ var Canvas = {
 						orderedPartialRound = -1;
 
 						if (e.ctrlKey && e.shiftKey) {
+							if (MIDI.data[iC6][jC6][N_PITCH] + 12 > pitchEditMax) continue;
 							MIDI.data[iC6][jC6][N_PITCH] += 12;
 							for (mC6=0; mC6 < MIDInotePartials7.length; mC6++) {
 								MIDI.data[iC6][jC6][N_DATA].partials[mC6][1] += 12  // Pridá sa 12 poltónov.
@@ -3075,6 +3108,7 @@ var Canvas = {
 						orderedPartialRound = -1;
 
 						if (e.ctrlKey && e.shiftKey) {
+							if (MIDI.data[iC7][jC7][N_PITCH] - 12 < pitchEditMin) continue;
 							MIDI.data[iC7][jC7][N_PITCH] -= 12;
 							for (mC7=0; mC7 < MIDInotePartials9.length; mC7++) {
 								MIDI.data[iC7][jC7][N_DATA].partials[mC7][1] -= 12  // odčíta 12 poltónov (jednotky nôt);
@@ -3512,33 +3546,38 @@ var Canvas = {
 
 		playbackNotes = [];
 
-		// V prvom kole sa spočítajú vybrané parciály na škálovanie zisku.
-		var selectedCount = 0;
+		// V prvom kole sa spočítajú noty s vybranými parciálmi na škálovanie zisku.
+		var selectedNoteCount = 0;
 		for (iC13 = 0; iC13 < MIDI.data.length; iC13++) {
 			for (jC13 = 0; jC13 < MIDI.data[iC13].length; jC13++) {
 				// Spustí sa 10 ms po aplikovaní kroku vzad, keďže séria krokov vzad môže vytvoriť prázdne priestory.
 				if (!MIDI.data[iC13][jC13] || !MIDI.data[iC13][jC13][N_DATA] || !MIDI.data[iC13][jC13][N_DATA].partials) continue;
 				MIDInotePartialsC2 = MIDI.data[iC13][jC13][N_DATA].partials;
 				for (kC13 = 0; kC13 < MIDInotePartialsC2.length; kC13++) {
-					if (MIDInotePartialsC2[kC13][4] || MIDInotePartialsC2[kC13][5]) selectedCount++;
+					if (MIDInotePartialsC2[kC13][4] || MIDInotePartialsC2[kC13][5]) { selectedNoteCount++; break; }
 				}
 			}
 		}
 
-		// Sínusové vlny sa sčítajú lineárne, preto sa používa 1/n namiesto 1/sqrt(n).
-		var velocity = selectedCount > 0 ? Math.max(0.05, 1 / selectedCount) : 1;
+		var noteComp = 1 / Math.max(1, selectedNoteCount);
 
 		for (iC13 = 0; iC13 < MIDI.data.length; iC13++) {
 			for (jC13 = 0; jC13 < MIDI.data[iC13].length; jC13++) {
 				if (!MIDI.data[iC13][jC13] || !MIDI.data[iC13][jC13][N_DATA] || !MIDI.data[iC13][jC13][N_DATA].partials) continue;
 				MIDInotePartialsC2 = MIDI.data[iC13][jC13][N_DATA].partials;
 
-				// Prehrá každý vybraný aj zvýraznený parciál samostatne.
+				var specDataC2 = getSpectrumDataSafe(iC13);
+				var trackDbC2 = instruments?.[iC13]?.volume || 0;
+				var trackLinearC2 = Math.pow(10, trackDbC2 / 20);
+
+				// Prehrá každý vybraný aj zvýraznený parciál samostatne s jeho skutočnou amplitúdou zo spektra.
 				for (kC13 = 0; kC13 < MIDInotePartialsC2.length; kC13++) {
 					if (MIDInotePartialsC2[kC13][4] || MIDInotePartialsC2[kC13][5]) {
 						var partialFreq = note2freq(MIDInotePartialsC2[kC13][1]);
 						// Preskočia sa nepočuteľné parciály.
 						if (partialFreq < 20 || partialFreq > 20000) continue;
+						var partialAmpC2 = specDataC2[kC13] ? specDataC2[kC13][1] : 1 / (kC13 + 1);
+						var velocity = Math.min(1, Math.max(0.02, partialAmpC2 * trackLinearC2 * 0.48 * noteComp));
 						freshSynth.triggerAttackRelease(partialFreq, "8n", now, velocity);
 						playbackNotes.push(MIDInotePartialsC2[kC13][1]);
 					}
@@ -3606,7 +3645,7 @@ var Canvas = {
 		var masterDb = typeof masterVolumeValue !== 'undefined' ? masterVolumeValue : -6;
 		var masterLinear = masterDb <= -70 ? 0 : Math.pow(10, masterDb / 20);
 		var gainCompensation = 1 / Math.max(1, noteCount);
-		var volumeScale = trackLinear * masterLinear * 0.3 * gainCompensation;
+		var volumeScale = trackLinear * masterLinear * 0.12 * gainCompensation;
 
 		var partialsData = timbre
 			? (typeof DynamicTimbre !== 'undefined'
@@ -3697,12 +3736,12 @@ var Canvas = {
 		if (!ctx || ctx.state !== 'running') return;
 
 		var now = ctx.currentTime;
-		// Faktor škálovania 0.3 kvôli zhode s nastavením zisku skutočných syntetizátorov na prehrávanie.
+		// Faktor škálovania 0.12 kvôli zhode s nastavením zisku skutočných syntetizátorov na prehrávanie.
 		var trackDb = instruments?.[trackIdx]?.volume || 0;
 		var trackLinear = Math.pow(10, trackDb / 20);
 		var masterDb = typeof masterVolumeValue !== 'undefined' ? masterVolumeValue : -6;
 		var masterLinear = masterDb <= -70 ? 0 : Math.pow(10, masterDb / 20);
-		var targetGain = amp * trackLinear * masterLinear * 0.3;
+		var targetGain = amp * trackLinear * masterLinear * 0.12;
 
 		// Ak práve hrá predprehrávanie parciálu, prevezme sa ako predprehrávanie ťahania.
 		if (Canvas._partialPreviewOsc && !Canvas._dragPreviewOsc) {
@@ -3793,20 +3832,23 @@ var Canvas = {
 		if (!(freq >= 20 && freq <= 20000)) return;
 
 		var now = ctx.currentTime;
-		// Faktor škálovania 0.3 kvôli zhode s nastavením zisku skutočných syntetizátorov na prehrávanie.
+		// Faktor škálovania 0.12 kvôli zhode s nastavením zisku skutočných syntetizátorov na prehrávanie.
 		var trackDb = instruments?.[trackIdx]?.volume || 0;
 		var trackLinear = Math.pow(10, trackDb / 20);
 		var masterDb = typeof masterVolumeValue !== 'undefined' ? masterVolumeValue : -6;
 		var masterLinear = masterDb <= -70 ? 0 : Math.pow(10, masterDb / 20);
-		var targetGain = Math.max(0.0001, amp * trackLinear * masterLinear * 0.3);
+		var targetGain = Math.max(0.0001, amp * trackLinear * masterLinear * 0.12);
 
 		// Ak oscilátor už existuje, iba sa aktualizuje frekvencia a zisk.
 		if (Canvas._partialPreviewOsc) {
 			var rampTime = now + 0.02;
 			Canvas._partialPreviewOsc.frequency.setValueAtTime(Canvas._partialPreviewOsc.frequency.value, rampTime);
 			Canvas._partialPreviewOsc.frequency.linearRampToValueAtTime(freq, rampTime + 0.015);
-			Canvas._partialPreviewGain.gain.setValueAtTime(Canvas._partialPreviewGain.gain.value, rampTime);
-			Canvas._partialPreviewGain.gain.linearRampToValueAtTime(targetGain, rampTime + 0.02);
+			var g = Canvas._partialPreviewGain.gain;
+			g.cancelScheduledValues(now);
+			g.setValueAtTime(g.value, rampTime);
+			g.linearRampToValueAtTime(targetGain, rampTime + 0.02);
+			g.setTargetAtTime(targetGain * 0.35, rampTime + 0.06, 0.3);
 			return;
 		}
 
@@ -3828,6 +3870,7 @@ var Canvas = {
 			var rampStart = now + 0.02;
 			Canvas._partialPreviewGain.gain.setValueAtTime(0, rampStart);
 			Canvas._partialPreviewGain.gain.linearRampToValueAtTime(targetGain, rampStart + 0.06);
+			Canvas._partialPreviewGain.gain.setTargetAtTime(targetGain * 0.35, rampStart + 0.12, 0.3);
 		} catch (e) {
 			Logger.warn('previewPartialSine: Could not start audio', e.message);
 			Canvas._partialPreviewOsc = null;
@@ -3965,23 +4008,24 @@ var Canvas = {
 			var trackDb = instruments?.[trackIdx]?.volume || 0;
 			var trackLinear = Math.pow(10, trackDb / 20);
 
-			var previewGain = Math.max(0.05, amp) * trackLinear * masterLinear * autoGain * 0.5;
+			var previewGain = Math.max(0.0001, amp * trackLinear * masterLinear * autoGain * 0.12);
+			var bedGain = previewGain * 0.35;
 
 			if (existing) {
 				if (existing.fadingOut) {
 					// Obnoví sa stíšujúci sa oscilátor a použije sa setTargetAtTime na plynulý prechod.
 					existing.gain.gain.cancelScheduledValues(now);
-					existing.gain.gain.setTargetAtTime(previewGain, now, 0.03);
+					existing.gain.gain.setTargetAtTime(bedGain, now, 0.03);
 					existing.osc.frequency.setTargetAtTime(freq, now, 0.02);
 					existing.fadingOut = false;
 					existing.pendingFadeOut = null;
 					existing.partialIdx = partialIdx;
-					existing.targetGain = previewGain;
+					existing.targetGain = bedGain;
 				} else {
 					// Zisk sa aktualizuje vždy, aby odrážal aktuálnu kompenzáciu podľa noteCount.
 					existing.gain.gain.cancelScheduledValues(now);
-					existing.gain.gain.setTargetAtTime(previewGain, now, 0.03);
-					existing.targetGain = previewGain;
+					existing.gain.gain.setTargetAtTime(bedGain, now, 0.03);
+					existing.targetGain = bedGain;
 					if (existing.partialIdx !== partialIdx) {
 						// Parciál sa zmenil, preto plynulý prechod frekvencie.
 						existing.osc.frequency.setTargetAtTime(freq, now, 0.02);
@@ -3995,7 +4039,7 @@ var Canvas = {
 			var osc = ctx.createOscillator();
 			var gain = ctx.createGain();
 
-			// Začne sa potichu a potom postupný nábeh.
+			// Začne sa potichu, nabehne na špičku a klesne na tiché ležiace pásmo ako pri držanom kliku.
 			gain.gain.value = 0;
 			osc.type = 'sine';
 			osc.frequency.value = freq;
@@ -4003,8 +4047,9 @@ var Canvas = {
 			gain.connect(destination);
 			osc.start(now);
 			gain.gain.setTargetAtTime(previewGain, now, 0.03);
+			gain.gain.setTargetAtTime(bedGain, now + 0.15, 0.3);
 
-			Canvas._selectionOscs.set(noteKey, { osc, gain, partialIdx, fadingOut: false, targetGain: previewGain });
+			Canvas._selectionOscs.set(noteKey, { osc, gain, partialIdx, fadingOut: false, targetGain: bedGain });
 			Canvas._selectionPreviewLastUpdate = now;
 		}
 	},
@@ -4064,7 +4109,7 @@ var Canvas = {
 					var p = partials[k];
 					var px = Canvas.offx + p[0] * barSize;
 					var pw = p[2] * barSize;
-					var ph = p[3] * octaveSpacingStep;
+					var ph = p[3] * Math.min(octaveSpacingStep, 10);
 					var py = Canvas.offy - p[1] * octaveSpacingStep - ph;
 					var pCenterY = py + ph / 2;
 
@@ -4469,6 +4514,7 @@ var Canvas = {
 
 				if (isSelected) {
 					// Použiť dostatočný rozsah hľadania. 10 sekúnd ako rezervu.
+					var changed = false;
 					var snapped = GridSystem.snapToGrid(note[N_TIME], i, 10);
 					if (snapped !== null && snapped !== note[N_TIME]) {
 						note[N_TIME] = snapped;
@@ -4477,8 +4523,19 @@ var Canvas = {
 								note[N_DATA].partials[k][0] = snapped;
 							}
 						}
-						quantizedCount++;
+						changed = true;
 					}
+					var snappedEnd = GridSystem.snapToGrid(note[N_TIME] + note[N_DUR], i, 10);
+					if (snappedEnd !== null && snappedEnd > note[N_TIME] && snappedEnd !== note[N_TIME] + note[N_DUR]) {
+						note[N_DUR] = snappedEnd - note[N_TIME];
+						for (let k = 0; k < note[N_DATA].partials.length; k++) {
+							if (note[N_DATA].partials[k]) {
+								note[N_DATA].partials[k][2] = note[N_DUR];
+							}
+						}
+						changed = true;
+					}
+					if (changed) quantizedCount++;
 				}
 			}
 		}
@@ -4541,7 +4598,7 @@ var Canvas = {
 					}
 
 					var targetFreq440 = nearestNote[1] * partialRatio;
-					var newNote2 = freq2note_440(targetFreq440);
+					var newNote2 = Math.max(pitchEditMin, Math.min(pitchEditMax, freq2note_440(targetFreq440)));
 					if (Math.abs(newNote2 - note[N_PITCH]) > 0.001) {
 						note[N_PITCH] = newNote2;
 						for (let k = 0; k < note[N_DATA].partials.length; k++) {

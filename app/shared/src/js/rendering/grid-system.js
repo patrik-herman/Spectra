@@ -24,10 +24,12 @@ var GridSystem = {
 
 	// Predvolené definície mriežok (nedajú sa zmazať).
 	defaults: {
-		'off': {
-			type: 'off',
-			name: 'Off',
-			deletable: false
+		'16th': {
+			type: 'linear',
+			name: '16th (120 BPM)',
+			deletable: false,
+			bpm: 120,
+			subdivisions: 4
 		},
 		'seconds': {
 			type: 'linear',
@@ -35,6 +37,25 @@ var GridSystem = {
 			deletable: false,
 			spacingMs: 1000,
 			subdivisions: 4
+		},
+		'bpm90': {
+			type: 'linear',
+			name: '90 BPM',
+			deletable: false,
+			bpm: 90,
+			subdivisions: 4
+		},
+		'bpm140': {
+			type: 'linear',
+			name: '140 BPM',
+			deletable: false,
+			bpm: 140,
+			subdivisions: 4
+		},
+		'off': {
+			type: 'off',
+			name: 'Off',
+			deletable: false
 		}
 	},
 
@@ -61,7 +82,12 @@ var GridSystem = {
 
 	getAll: () => {
 		var DB = window.DB;
-		return DB?.get('grids') || GridSystem.defaults;
+		var stored = DB?.get('grids');
+		if (!stored) return GridSystem.defaults;
+		var merged = {};
+		for (const k in GridSystem.defaults) merged[k] = stored[k] || GridSystem.defaults[k];
+		for (const k in stored) if (!merged[k]) merged[k] = stored[k];
+		return merged;
 	},
 
 	// Konkrétna mriežka podľa identifikátora, prípadne podľa názvu.
@@ -140,7 +166,7 @@ var GridSystem = {
 	},
 
 	// pole { time: number, type: 'major'|'minor' }
-	getGridLines: (trackIdx, viewportStart, viewportEnd) => {
+	_gridChangesFor: (trackIdx) => {
 		// Zhromaždenie zmien mriežky z aktuálnej stopy a globálnych mriežok zo všetkých stôp.
 		var allGridChanges = [];
 
@@ -169,11 +195,15 @@ var GridSystem = {
 			}
 		}
 
-		if (allGridChanges.length === 0) {
+		return allGridChanges.sort((a, b) => a.time - b.time);
+	},
+
+	getGridLines: (trackIdx, viewportStart, viewportEnd) => {
+		var gridChanges = GridSystem._gridChangesFor(trackIdx);
+
+		if (gridChanges.length === 0) {
 			return [];
 		}
-
-		var gridChanges = allGridChanges.sort((a, b) => a.time - b.time);
 
 		// Zhromaždenie všetkých čiar mriežky zo všetkých aktívnych segmentov vo viewporte.
 		var allLines = [];
@@ -436,7 +466,26 @@ var GridSystem = {
 	},
 
 	snapToGrid: (time, trackIdx, threshold = 0.1) => {
-		var lines = GridSystem.getGridLines(trackIdx, time - threshold, time + threshold);
+		var changes = GridSystem._gridChangesFor(trackIdx);
+		var active = null, next = null;
+		for (let i = 0; i < changes.length; i++) {
+			if (changes[i].time <= time) {
+				active = changes[i];
+				next = changes[i + 1] || null;
+			} else {
+				break;
+			}
+		}
+		if (!active) return null;
+
+		var grid = GridSystem.get(active.gridKey);
+		if (!grid || grid.type === 'off') return null;
+
+		var lo = Math.max(active.time, time - threshold);
+		var hi = next ? Math.min(next.time, time + threshold) : time + threshold;
+		if (lo >= hi) return null;
+
+		var lines = GridSystem.getGridLines(trackIdx, lo, hi);
 
 		if (lines.length === 0) return null;
 
@@ -452,6 +501,39 @@ var GridSystem = {
 		}
 
 		return nearest;
+	},
+
+	cellAt: (time, trackIdx, range = 10) => {
+		var changes = GridSystem._gridChangesFor(trackIdx);
+		var active = null, next = null;
+		for (let i = 0; i < changes.length; i++) {
+			if (changes[i].time <= time) {
+				active = changes[i];
+				next = changes[i + 1] || null;
+			} else {
+				break;
+			}
+		}
+		if (!active) return null;
+
+		var grid = GridSystem.get(active.gridKey);
+		if (!grid || grid.type === 'off') return null;
+
+		var lo = Math.max(active.time, time - range);
+		var hi = next ? Math.min(next.time, time + range) : time + range;
+		if (lo >= hi) return null;
+
+		var lines = GridSystem.getGridLines(trackIdx, lo, hi);
+		var floor = null, ceil = null;
+		for (const line of lines) {
+			if (line.time <= time && (floor === null || line.time > floor)) floor = line.time;
+			if (line.time > time && (ceil === null || line.time < ceil)) ceil = line.time;
+		}
+		if (floor === null || ceil === null || ceil <= floor) return null;
+		var beat = grid.bpm ? 60 / grid.bpm : (grid.spacingMs ? grid.spacingMs / 1000 : null);
+		var beatEnd = beat ? floor + Math.max(beat, ceil - floor) : ceil;
+		if (next && beatEnd > next.time) beatEnd = Math.max(ceil, next.time);
+		return { start: floor, end: ceil, beatEnd: beatEnd };
 	},
 
 	// UI editora mriežok.

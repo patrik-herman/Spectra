@@ -1008,8 +1008,8 @@ var DB = {
 		return {
 			'harmonic16': {
 				name: "Harmonic 16",
-				description: "partials 1-16, 1/n",
-				keypoints: [{ pitch: 60, data: Array.from({length: 16}, (_, i) => [i + 1, 1 / (i + 1)]) }]
+				description: "partials 1-16, 1/n^2",
+				keypoints: [{ pitch: 60, data: Array.from({length: 16}, (_, i) => [i + 1, 1 / Math.pow(i + 1, 2)]) }]
 			}
 		};
 	},

@@ -285,7 +285,7 @@ var EditorLists = {
 				nameSpan.textContent = scale.name || key;
 				item.appendChild(nameSpan);
 
-				if (key === 'edo12' && !EditorLists.selectedTuning) {
+				if (key === ((typeof settings !== 'undefined' && settings?.scale) || 'edo12') && !EditorLists.selectedTuning) {
 					item.classList.add('selected');
 					EditorLists.selectedTuning = key;
 					selectedCategory = category;
@@ -343,7 +343,10 @@ var EditorLists = {
 		});
 
 		var builtInKeys = new Set(['harmonic16', 'square', 'subharmonic', 'golden', 'stretched', 'tamtam',
+			'pluck', 'bell',
 			'flute', 'oboe', 'clarinet', 'violin', 'viola', 'cello', 'contrabass']);
+
+		var defaultTimbreKey = (typeof instruments !== 'undefined' && instruments.find?.(i => i?.selected)?.spectrum) || DEFAULT_SPECTRUM;
 
 		var selectedCategory = null;
 
@@ -367,7 +370,7 @@ var EditorLists = {
 				if (key === EditorLists.selectedTimbre) {
 					item.classList.add('selected');
 					selectedCategory = category;
-				} else if (reload && !EditorLists.selectedTimbre && key === DEFAULT_SPECTRUM) {
+				} else if (reload && !EditorLists.selectedTimbre && key === defaultTimbreKey) {
 					item.classList.add('selected');
 					EditorLists.selectedTimbre = key;
 					selectedCategory = category;
@@ -403,7 +406,7 @@ var EditorLists = {
 		if (!container) return;
 
 		container.innerHTML = '';
-		var gridsList = DB.get('grids') || {};
+		var gridsList = (typeof GridSystem !== 'undefined' && GridSystem.getAll) ? GridSystem.getAll() : (DB.get('grids') || {});
 
 		var groups = EditorLists.groupByCategory(gridsList, 'Standard');
 
@@ -422,6 +425,7 @@ var EditorLists = {
 
 		// Vstavané mriežky, pri ktorých sa nemá zobrazovať globálny prepínač.
 		var builtInKeys = new Set(['off', 'seconds', 'seconds2', 'seconds4', 'seconds8',
+			'16th', 'bpm90', 'bpm140',
 			'harmonic', 'subharmonic', 'sinewave', 'golden', 'clarinet']);
 
 		var selectedCategory = null;
@@ -446,7 +450,7 @@ var EditorLists = {
 				if (key === EditorLists.selectedGrid) {
 					item.classList.add('selected');
 					selectedCategory = category;
-				} else if (!EditorLists.selectedGrid && key === 'off') {
+				} else if (!EditorLists.selectedGrid && key === ((typeof settings !== 'undefined' && settings?.grid) || '16th')) {
 					item.classList.add('selected');
 					EditorLists.selectedGrid = key;
 					selectedCategory = category;

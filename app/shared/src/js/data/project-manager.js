@@ -663,7 +663,7 @@ var ProjectManager = {
 				0: {
 					markers: [],
 					tuningChanges: [{ time: 0, tuningKey: 'edo12' }],
-					gridChanges: [{ time: 0, gridKey: 'seconds' }]
+					gridChanges: [{ time: 0, gridKey: '16th' }]
 				}
 			},
 			viewState: Config.defaultViewState,
@@ -1439,6 +1439,8 @@ var ProjectManager = {
 
 			var UI = window.UI;
 			if (UI?.instruments) UI.instruments.refresh();
+
+			if (window.Setup?.resetEditors) window.Setup.resetEditors();
 
 			var EditorLists = window.EditorLists;
 			if (EditorLists) {

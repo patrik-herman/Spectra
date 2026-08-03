@@ -195,7 +195,7 @@ function download(data, filename, type) {
 // [ZDROJ] IEC 61966-2-1:1999. Multimedia systems and equipment - Colour measurement and management - Part
 //   2-1: Colour management - Default RGB colour space - sRGB. Geneva: IEC, 1999.
 
-function rotateHexColor(hex, deg = 180) {
+function rotateHexColor(hex, deg = 180, dL = 0, dC = 1) {
 	hex = hex.replace(/^#/, "");
 	var r = parseInt(hex.slice(0, 2), 16) / 255;
 	var g = parseInt(hex.slice(2, 4), 16) / 255;
@@ -215,12 +215,13 @@ function rotateHexColor(hex, deg = 180) {
 	var B = 0.0259040371 * l_ + 0.7827717662 * m_ - 0.8086757660 * s_;
 
 	// OKLAB -> OKLCH (polárny tvar kvôli otočeniu odtieňu).
-	var C = Math.sqrt(A * A + B * B);
+	var C = Math.sqrt(A * A + B * B) * dC;
 	var h = Math.atan2(B, A) * (180 / Math.PI);
 	if (h < 0) h += 360;
 
 	// Aplikácia otočenia odtieňu.
 	h = (h + deg) % 360;
+	L = Math.max(0.05, Math.min(0.97, L + dL));
 	var hRad = h * (Math.PI / 180);
 
 	// OKLCH -> OKLAB.

@@ -60,9 +60,24 @@ var MIDI = {
 		if (typeof(MIDI.data[trackIdx]) !== 'undefined') {
 			noteX = Math.max(0, noteX);
 			if (typeof noteY !== 'number' || isNaN(noteY)) noteY = 60;  // Predvolené je stredné C.
-			noteY = Math.max(-24, Math.min(150, noteY));
+			noteY = Math.max(pitchEditMin, Math.min(pitchEditMax, noteY));
 
-			var newNote = [noteX, 1, noteY, 1, null, 0, 0];
+			var noteW = 1;
+			var shiftHeld = typeof shiftKey !== 'undefined' && shiftKey;
+			if (!shiftHeld && typeof GridSystem !== 'undefined') {
+				var cell = GridSystem.cellAt ? GridSystem.cellAt(noteX, trackIdx) : null;
+				if (cell) {
+					noteX = Math.max(0, cell.start);
+					noteW = (cell.beatEnd || cell.end) - noteX;
+				} else if (GridSystem.snapToGrid) {
+					var snappedX = GridSystem.snapToGrid(noteX, trackIdx, 10);
+					if (snappedX !== null) noteX = Math.max(0, snappedX);
+					var snappedEnd = GridSystem.snapToGrid(noteX + noteW, trackIdx, 10);
+					if (snappedEnd !== null && snappedEnd > noteX) noteW = snappedEnd - noteX;
+				}
+			}
+
+			var newNote = [noteX, noteW, noteY, 1, null, 0, 0];
 			var newNoteIndex = MIDI.data[trackIdx].length;
 			MIDI.data[trackIdx].push(newNote);
 

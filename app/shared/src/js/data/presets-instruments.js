@@ -9,7 +9,7 @@
 // Nástroje a ich spektrá, resp. súbory parciálov
 // Obsahuje:
 // - základné farby sú harmonic/square/subharmonic/golden/stretched
-// harmonic má frekvencie f0 * n a amplitúdu 1
+// harmonic má frekvencie f0 * n a amplitúdu 1/n^2
 // square je to isté ako harmonic, ale s frekvenciami f0*2n a amplitúdou 1/n
 // subharmonic má frekvenciu f0 / n a amplitúdu 1
 // golden
@@ -20,12 +20,12 @@ window.INSTRUMENT_PRESETS = {
 		"harmonic16": {
 			name: "Harmonic 16",
 			category: "Harmonic",
-			description: "partials 1-16, 1/n",
+			description: "partials 1-16, 1/n^2",
 			keypoints: [
 				{ pitch: 60, data: [
-					[1, 1], [2, 0.5], [3, 0.3333], [4, 0.25], [5, 0.2], [6, 0.1667], [7, 0.1429],
-					[8, 0.125], [9, 0.1111], [10, 0.1], [11, 0.0909], [12, 0.0833], [13, 0.0769],
-					[14, 0.0714], [15, 0.0667], [16, 0.0625]
+					[1, 1], [2, 0.25], [3, 0.1111], [4, 0.0625], [5, 0.04], [6, 0.0278], [7, 0.0204],
+					[8, 0.0156], [9, 0.0123], [10, 0.01], [11, 0.0083], [12, 0.0069], [13, 0.0059],
+					[14, 0.0051], [15, 0.0044], [16, 0.0039]
 				] }
 			],
 			envelope: { a: 0.02, d: 0.1, s: 0.85, r: 0.15 }
@@ -104,6 +104,30 @@ window.INSTRUMENT_PRESETS = {
 				] }
 			],
 			envelope: { a: 0.005, d: 0.4, s: 0.3, r: 2 }
+		},
+		"pluck": {
+			name: "Pluck",
+			category: "Harmonic",
+			description: "partials 1-8, 1/n^2, plucked envelope",
+			keypoints: [
+				{ pitch: 60, data: [
+					[1, 1], [2, 0.25], [3, 0.1111], [4, 0.0625],
+					[5, 0.04], [6, 0.0278], [7, 0.0204], [8, 0.0156]
+				] }
+			],
+			envelope: { a: 0.003, d: 0.35, s: 0, r: 0.25 }
+		},
+		"bell": {
+			name: "Bell",
+			category: "Inharmonic",
+			description: "minor-third bell partials, hum-anchored, struck envelope",
+			keypoints: [
+				{ pitch: 60, data: [
+					[1, 0.7], [2, 1], [2.4, 0.75], [3, 0.5], [4, 0.65],
+					[5.33, 0.3], [6, 0.22], [9, 0.12], [10.67, 0.08]
+				] }
+			],
+			envelope: { a: 0.002, d: 2.5, s: 0, r: 1.2 }
 		}
 	},
 

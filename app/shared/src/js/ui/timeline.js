@@ -293,6 +293,7 @@ var Timeline = {
 		var GridSystem = window.GridSystem;
 		if (GridSystem) GridSystem.refreshCache();
 
+		if (window.AdaptiveTuning) window.AdaptiveTuning.refresh();
 	},
 
 	captureTrackEventsState: () => {
@@ -631,6 +632,11 @@ var Timeline = {
 				Timeline.interaction.excludeGridIndex = null;
 				Timeline.interaction.cachedSnapLines = null;
 			}
+		} else {
+			Timeline.interaction.panning = true;
+			Timeline.interaction.panStartX = x;
+			Timeline.interaction.panStartOffx = window.Canvas ? window.Canvas.offx : 0;
+			Timeline.canvas.style.cursor = 'grabbing';
 		}
 	},
 
@@ -639,7 +645,7 @@ var Timeline = {
 		var x = e.clientX - rect.left;
 		var y = e.clientY - rect.top;
 
-		if (Timeline.interaction.dragging || Timeline.interaction.loopDragging) {
+		if (Timeline.interaction.dragging || Timeline.interaction.loopDragging || Timeline.interaction.panning) {
 			return;
 		} else {
 			var loopHit = Timeline.findLoopHitAt(x, y);
@@ -703,6 +709,17 @@ var Timeline = {
 
 	onDocumentMouseMove: (e) => {
 		if (!Timeline.canvas) return;
+
+		if (Timeline.interaction.panning) {
+			var panRect = Timeline.canvas.getBoundingClientRect();
+			var Canvas = window.Canvas;
+			if (Canvas) {
+				Canvas.offx = Timeline.interaction.panStartOffx + (e.clientX - panRect.left - Timeline.interaction.panStartX);
+				Canvas.barlinesOffx = Canvas.offx % (window.barSize || 100);
+				if (typeof window.debouncedSaveViewState === 'function') window.debouncedSaveViewState();
+			}
+			return;
+		}
 
 		if (Timeline.interaction.loopDragging) {
 			const rect = Timeline.canvas.getBoundingClientRect();
@@ -803,6 +820,14 @@ var Timeline = {
 	},
 
 	onDocumentMouseUp: (e) => {
+		if (Timeline.interaction.panning) {
+			Timeline.interaction.panning = false;
+			if (Timeline.canvas) {
+				Timeline.canvas.style.cursor = 'default';
+			}
+			return;
+		}
+
 		if (Timeline.interaction.loopDragging) {
 			var playback = window.playback;
 			var beforeStart = Timeline.interaction.loopBeforeDragStart;
@@ -954,7 +979,8 @@ var Timeline = {
 			case 'markers':
 				content = `
 					<input type="text" class="timeline-info-name" value="${escAttr(event.name || '')}" style="width: 140px;" placeholder="Marker name">
-					<input type="number" class="timeline-info-time" value="${event.time.toFixed(3)}" step="0.001" style="width: 70px;" title="Time (s)">
+					<label class="timeline-info-time-label" style="display: inline-flex; align-items: center; gap: 4px;"><span>Time (s)</span>
+					<input type="number" class="timeline-info-time" value="${event.time.toFixed(3)}" step="0.001" style="width: 70px;" title="Time (s)"></label>
 				`;
 				break;
 
@@ -966,11 +992,23 @@ var Timeline = {
 					tuningOptions += `<option value="${key}" ${selected}>${scales[key].name}</option>`;
 				}
 
+				var spectraList = DB?.get('spectra') || {};
+				var mappingOptions = `<option value="">Adaptive mapping: track timbre</option>`;
+				for (const key in spectraList) {
+					const selected = key === event.mappingSpectrum ? 'selected' : '';
+					mappingOptions += `<option value="${key}" ${selected}>Adaptive mapping: ${spectraList[key].name}</option>`;
+				}
+				var mappingVisible = !!window.AdaptiveTuning?.isAdaptive(event.tuningKey);
+
 				content = `
 					<select class="timeline-info-tuning" style="width: 180px;">
 						${tuningOptions}
 					</select>
-					<input type="number" class="timeline-info-time" value="${event.time.toFixed(3)}" step="0.001" style="width: 70px;" title="Time (s)">
+					<label class="timeline-info-time-label" style="display: inline-flex; align-items: center; gap: 4px;"><span>Time (s)</span>
+					<input type="number" class="timeline-info-time" value="${event.time.toFixed(3)}" step="0.001" style="width: 70px;" title="Time (s)"></label>
+					<select class="timeline-info-mapping" style="display: ${mappingVisible ? 'block' : 'none'}; width: 258px; margin-top: 6px;" title="Partial lattice used by adaptive JI from this event on">
+						${mappingOptions}
+					</select>
 					<label class="timeline-info-global-label" style="display: flex; align-items: center; margin-top: 8px; cursor: pointer;">
 						<input type="checkbox" class="timeline-info-global" ${event.global ? 'checked' : ''} style="margin-right: 6px;">
 						<span>Global (applies to all tracks)</span>
@@ -990,7 +1028,8 @@ var Timeline = {
 					<select class="timeline-info-grid" style="width: 180px;">
 						${gridOptions}
 					</select>
-					<input type="number" class="timeline-info-time" value="${event.time.toFixed(3)}" step="0.001" style="width: 70px;" title="Time (s)">
+					<label class="timeline-info-time-label" style="display: inline-flex; align-items: center; gap: 4px;"><span>Time (s)</span>
+					<input type="number" class="timeline-info-time" value="${event.time.toFixed(3)}" step="0.001" style="width: 70px;" title="Time (s)"></label>
 					<label class="timeline-info-global-label" style="display: flex; align-items: center; margin-top: 8px; cursor: pointer;">
 						<input type="checkbox" class="timeline-info-global" ${event.global ? 'checked' : ''} style="margin-right: 6px;">
 						<span>Global (applies to all tracks)</span>
@@ -1020,6 +1059,14 @@ var Timeline = {
 			isNew,
 			trackIdx
 		};
+
+		var tuningSelectEl = pane.querySelector('.timeline-info-tuning');
+		var mappingSelectEl = pane.querySelector('.timeline-info-mapping');
+		if (tuningSelectEl && mappingSelectEl) {
+			tuningSelectEl.addEventListener('change', () => {
+				mappingSelectEl.style.display = window.AdaptiveTuning?.isAdaptive(tuningSelectEl.value) ? 'block' : 'none';
+			});
+		}
 
 		var applyBtn = pane.querySelector('.timeline-info-apply');
 		var deleteBtn = pane.querySelector('.timeline-info-delete');
@@ -1113,6 +1160,11 @@ var Timeline = {
 				var tuningSelect = pane.querySelector('.timeline-info-tuning');
 				if (tuningSelect) {
 					items[index].tuningKey = tuningSelect.value;
+				}
+				var mappingSelect = pane.querySelector('.timeline-info-mapping');
+				if (mappingSelect) {
+					var appliedAdaptive = !!window.AdaptiveTuning?.isAdaptive(items[index].tuningKey);
+					items[index].mappingSpectrum = (appliedAdaptive && mappingSelect.value) ? mappingSelect.value : undefined;
 				}
 				var tuningGlobalCheckbox = pane.querySelector('.timeline-info-global');
 				if (tuningGlobalCheckbox) {

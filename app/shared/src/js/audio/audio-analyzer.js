@@ -62,6 +62,30 @@ function previewTimbre() {
 	var buffer = ctx.createBuffer(1, bufferSize, ctxSampleRate);
 	var channelData = buffer.getChannelData(0);
 
+	var envLevel = null;
+	if (sel('.timbre-envelope-enable')?.checked) {
+		var readEnv = (q, dflt) => {
+			var v = parseFloat(sel(q)?.value);
+			return Number.isFinite(v) ? v : dflt;
+		};
+		var envA = readEnv('.timbre-env-attack', 0.005);
+		var envD = readEnv('.timbre-env-decay', 0);
+		var envS = readEnv('.timbre-env-sustain', 1);
+		var envR = readEnv('.timbre-env-release', 0.005);
+		var releaseStart = Math.max(0, duration - envR);
+		envLevel = (t) => {
+			if (t >= releaseStart) {
+				var base = releaseStart < envA ? (envA > 0 ? releaseStart / envA : 1)
+					: releaseStart < envA + envD ? 1 - (1 - envS) * ((releaseStart - envA) / envD)
+					: envS;
+				return envR > 0 ? Math.max(0, base * (1 - (t - releaseStart) / envR)) : 0;
+			}
+			if (t < envA) return envA > 0 ? t / envA : 1;
+			if (t < envA + envD) return envD > 0 ? 1 - (1 - envS) * ((t - envA) / envD) : envS;
+			return envS;
+		};
+	}
+
 	// Generovanie súčtu sínusoviek.
 	for (let i = 0; i < bufferSize; i++) {
 		var t = i / ctxSampleRate;
@@ -70,7 +94,7 @@ function previewTimbre() {
 			// Vzhľadom na komorné A.
 			sample += Math.sin(2 * Math.PI * note2freq(69) * data[h][0] * t) * (1 / data.length) * data[h][1];
 		}
-		channelData[i] = sample;
+		channelData[i] = envLevel ? sample * envLevel(t) : sample;
 	}
 
 	var source = ctx.createBufferSource();

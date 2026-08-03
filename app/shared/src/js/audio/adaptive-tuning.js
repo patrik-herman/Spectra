@@ -96,30 +96,45 @@ var AdaptiveTuning = {
 		for (let noteIdx = 0; noteIdx < track.length; noteIdx++) {
 			var note = track[noteIdx];
 			if (!note || note.length < 4) continue;
-			
+
 			boundaries.push({ time: note[N_TIME], type: 'start', noteIdx });
 			boundaries.push({ time: note[N_TIME] + note[N_DUR], type: 'end', noteIdx });
 		}
-		
-		// Zoradenie podľa času; pri totožnom čase potom konce pred začiatkami.
+
+		var TimelineRef = window.Timeline;
+		if (TimelineRef?.getTrackEvents) {
+			var tuningChangesForReset = TimelineRef.getTrackEvents(trackIdx)?.tuningChanges || [];
+			for (const tc of tuningChangesForReset) {
+				if (tc.time > 0) boundaries.push({ time: tc.time, type: 'reset' });
+			}
+		}
+
+		// Zoradenie podľa času; pri totožnom čase konce, potom hranice ladenia, potom začiatky.
+		var boundaryRank = { end: 0, reset: 1, start: 2 };
 		boundaries.sort((a, b) => {
 			if (a.time !== b.time) return a.time - b.time;
-			return a.type === 'end' ? -1 : 1;
+			return boundaryRank[a.type] - boundaryRank[b.type];
 		});
 		
 		// Zostavenie segmentov
 		var segments = [];
 		var currentlyPlaying = new Set(); // noteIdx práve znejúcich nôt.
 		var lastTime = 0;
-		
+		var lastAdaptivePitches = null;
+
 		for (let i = 0; i < boundaries.length; i++) {
 			var boundary = boundaries[i];
-			
+
 			// Segment pred daným bodom v prípade medzery.
 			if (boundary.time > lastTime) {
 				if (currentlyPlaying.size === 0) {
-					// Keď žiadne noty neznejú, ide o segment 12-EDO.
-					segments.push({
+					// Keď žiadne noty neznejú, ladenie poslednej znejúcej noty alebo akordu pokračuje doprava; pred prvou notou je to 12-EDO.
+					segments.push(lastAdaptivePitches ? {
+						startTime: lastTime,
+						endTime: boundary.time,
+						is12EDO: false,
+						pitches: lastAdaptivePitches
+					} : {
 						startTime: lastTime,
 						endTime: boundary.time,
 						is12EDO: true,
@@ -128,7 +143,7 @@ var AdaptiveTuning = {
 				} else {
 					// Keď noty znejú, použijú sa adaptívne výšky z dynamickej farby.
 					var pitches = AdaptiveTuning._calculatePitchesFromNotes(
-						track, currentlyPlaying, timbre, config
+						track, currentlyPlaying, AdaptiveTuning._mappingTimbreAt(lastTime, trackIdx) || timbre, config
 					);
 					segments.push({
 						startTime: lastTime,
@@ -136,22 +151,30 @@ var AdaptiveTuning = {
 						is12EDO: false,
 						pitches: pitches
 					});
+					lastAdaptivePitches = pitches;
 				}
 			}
 			
 			// Aktualizácia množiny znejúcich nôt.
 			if (boundary.type === 'start') {
 				currentlyPlaying.add(boundary.noteIdx);
-			} else {
+			} else if (boundary.type === 'end') {
 				currentlyPlaying.delete(boundary.noteIdx);
+			} else {
+				lastAdaptivePitches = null;
 			}
 			
 			lastTime = boundary.time;
 		}
 		
-		// Záverečný segment 12-EDO za poslednou notou, siaha do nekonečna a oreže sa až pri vykresľovaní.
+		// Záverečný segment za poslednou notou siaha do nekonečna a nesie jej ladenie; oreže sa až pri vykresľovaní.
 		if (currentlyPlaying.size === 0 && boundaries.length > 0) {
-			segments.push({
+			segments.push(lastAdaptivePitches ? {
+				startTime: lastTime,
+				endTime: Infinity,
+				is12EDO: false,
+				pitches: lastAdaptivePitches
+			} : {
 				startTime: lastTime,
 				endTime: Infinity,
 				is12EDO: true,
@@ -165,6 +188,31 @@ var AdaptiveTuning = {
 		AdaptiveTuning._lastAccessedCache = cache;
 	},
 	
+	_tuningRegionStartAt: (time, trackIdx) => {
+		var Timeline = window.Timeline;
+		if (!Timeline?.getTrackEvents) return 0;
+		var changes = Timeline.getTrackEvents(trackIdx)?.tuningChanges;
+		if (!changes || changes.length === 0) return 0;
+		var start = 0;
+		for (const c of changes) {
+			if (c.time <= time && c.time >= start) start = c.time;
+		}
+		return start;
+	},
+
+	_mappingTimbreAt: (time, trackIdx) => {
+		var Timeline = window.Timeline;
+		if (!Timeline?.getTrackEvents) return null;
+		var changes = Timeline.getTrackEvents(trackIdx)?.tuningChanges;
+		if (!changes || changes.length === 0) return null;
+		var active = null;
+		for (const c of changes) {
+			if (c.time <= time && (!active || c.time >= active.time)) active = c;
+		}
+		var key = active?.mappingSpectrum;
+		return key ? (window.spectra?.[key] || null) : null;
+	},
+
 	// Výšky 12-EDO pre segmenty s voľným umiestnením.
 	_get12EDOPitches: (config) => {
 		var pitches = [];
@@ -326,7 +374,7 @@ var AdaptiveTuning = {
 		var spectra = window.spectra;
 		var instrument = instruments[trackIdx];
 		var spectrumKey = instrument?.spectrum || DEFAULT_SPECTRUM;
-		var timbre = spectra?.[spectrumKey];
+		var timbre = AdaptiveTuning._mappingTimbreAt(time, trackIdx) || spectra?.[spectrumKey];
 
 		// Noty znejúce v danom čase, okrem danej noty.
 		var playingNoteIndices = new Set();
@@ -341,9 +389,30 @@ var AdaptiveTuning = {
 			}
 		}
 
-		// Ak neznejú iné noty, použije sa 12-EDO.
+		// Ak neznejú iné noty, pokračuje ladenie naposledy skončenej noty alebo akordu z aktuálnej oblasti ladenia; bez neho sa použije 12-EDO.
 		if (playingNoteIndices.size === 0) {
-			return AdaptiveTuning._get12EDOPitches(config);
+			var regionStart = AdaptiveTuning._tuningRegionStartAt(time, trackIdx);
+			var lastEnd = -Infinity;
+			for (let noteIdx = 0; noteIdx < track.length; noteIdx++) {
+				if (noteIdx === excludeNoteIdx) continue;
+				var n = track[noteIdx];
+				if (!n || n.length < 4) continue;
+				var end = n[N_TIME] + n[N_DUR];
+				if (end <= time && end > lastEnd && end > regionStart) lastEnd = end;
+			}
+			if (lastEnd > -Infinity) {
+				for (let noteIdx = 0; noteIdx < track.length; noteIdx++) {
+					if (noteIdx === excludeNoteIdx) continue;
+					var n2 = track[noteIdx];
+					if (!n2 || n2.length < 4) continue;
+					if (n2[N_TIME] < lastEnd && n2[N_TIME] + n2[N_DUR] >= lastEnd) {
+						playingNoteIndices.add(noteIdx);
+					}
+				}
+			}
+			if (playingNoteIndices.size === 0) {
+				return AdaptiveTuning._get12EDOPitches(config);
+			}
 		}
 
 		return AdaptiveTuning._calculatePitchesFromNotes(track, playingNoteIndices, timbre, config);
@@ -504,7 +573,7 @@ var AdaptiveTuning = {
 		var spectra = window.spectra;
 		var instrument = instruments?.[trackIdx];
 		var spectrumKey = instrument?.spectrum || DEFAULT_SPECTRUM;
-		var timbre = spectra?.[spectrumKey];
+		var timbre = AdaptiveTuning._mappingTimbreAt(time, trackIdx) || spectra?.[spectrumKey];
 
 		// Zozbieranie všetkých znejúcich nôt spolu s výškami (noty stopy + držané MIDI noty).
 		var soundingNotes = []; // {pitch, fundamental}

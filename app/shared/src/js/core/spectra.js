@@ -806,6 +806,9 @@ document.addEventListener('click', e => {
 			UI.page.toggleUI(pageNumber);
 			updateCanvasSize();
 			t.blur();
+			if (document.activeElement && document.activeElement !== document.body) {
+				document.activeElement.blur();
+			}
 		}
 		if (t.id === 'header-save') {
 			t.blur();
@@ -831,6 +834,7 @@ document.addEventListener('click', e => {
 						// Reset indikátora, aby sa UI mohlo znovu zostaviť.
 						ProjectManager.startupUIShown = false;
 						ProjectManager.showStartupUI();
+						if (window.Setup?.resetEditors) window.Setup.resetEditors();
 					}
 				});
 			}
@@ -1036,6 +1040,15 @@ document.addEventListener('click', e => {
 	}
 	else if (t.classList.contains('playback-options-caret')) {
 		playbackUIMenu.style.display = playbackUIMenu.style.display === 'none' ? '' : 'none';
+	}
+	else if (t.classList.contains('playback-tostart') || t.closest?.('.playback-tostart')) {
+		playback.time = 0;
+		playback.midiTime = 0;
+		playback.timeOld = 0;
+		if (typeof Canvas !== 'undefined') Canvas.keepPlayheadInView();
+		var tostartBtn = t.classList.contains('playback-tostart') ? t : t.closest('.playback-tostart');
+		tostartBtn.blur();
+		Canvas.canvas.focus();
 	}
 	else if (t.classList.contains('playback-stop-button')) {
 		if (!playback.playing) return;
@@ -1488,13 +1501,7 @@ async function togglePlayback() {
 		if (playbackUIPlay.dataset.type === 'return') playback.time = playback.timeOld;
 	}
 }
-var macCtrl = e => {
-	if (e.metaKey && !e.ctrlKey) {
-		try { Object.defineProperty(e, 'ctrlKey', { value: true, configurable: true }); } catch(_) {}
-	}
-};
 document.addEventListener('keydown', e => {
-	macCtrl(e);
 
 	var isInInput = e.target && e.target.tagName &&
 		(e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) &&
@@ -1623,6 +1630,13 @@ document.addEventListener('keydown', e => {
 	// Del / Backspace.
 	if (e.keyCode === 46 || e.keyCode === 8) {
 		Canvas.deletePartials();
+	}
+	else if (e.keyCode === 36) {
+		e.preventDefault();
+		playback.time = 0;
+		playback.midiTime = 0;
+		playback.timeOld = 0;
+		if (typeof Canvas !== 'undefined') Canvas.keepPlayheadInView();
 	}
 	// Pri Ctrl+Up sa vyberie najbližší vyšší parciál pri vybraných notách.
 	else if (e.keyCode === 38 && e.ctrlKey && !e.shiftKey && !e.altKey) {
@@ -2036,7 +2050,6 @@ document.addEventListener('keydown', e => {
 	}
 });
 document.addEventListener('keyup', e => {
-	macCtrl(e);
 	if (Spectra.callHooks('keyUp', e, { shiftKey: shiftKey, ctrlKey: ctrlKey, altKey: altKey })) {
 		e.preventDefault();
 		shiftKey = e.shiftKey;
@@ -2721,6 +2734,19 @@ document.getElementById('canvasElement')?.addEventListener('touchmove', (e) => {
 
 window.addEventListener('wheel', e => {
 	var t = e.target;
+	if (t.tagName && t.tagName.toLowerCase() === 'canvas' && t.id === 'timelineCanvas') {
+		e.preventDefault();
+		const old = barSize;
+		if (e.deltaY < 0) barSize *= zoomFactor;
+		else barSize /= zoomFactor;
+		barSize = Math.min(maxBarSize, Math.max(minBarSize, barSize));
+		const scale = barSize / old;
+		const mouseX = e.offsetX - 60;
+		Canvas.offx = mouseX - (mouseX - Canvas.offx) * scale;
+		Canvas.barlinesOffx = Canvas.offx % barSize;
+		debouncedSaveViewState();
+		return;
+	}
 	if (t.tagName && t.tagName.toLowerCase() === 'canvas' && t.id === 'canvasElement') {
 		if (!Canvas.canvas) return;
 
@@ -2954,8 +2980,18 @@ function canvasMouseMove(e) {
 			const noteInfo = select.dblClickNote;
 			const note = MIDI.data[noteInfo.instIdx][noteInfo.noteIdx];
 			if (note) {
+				if (!noteInfo.resizing && Math.abs(e.offsetX - noteInfo.startMouseX) < 5) return;
+				noteInfo.resizing = true;
+
 				var currentTimeX = (e.offsetX - 60.5 - Canvas.offx) / barSize;
 				var newLength = currentTimeX - noteInfo.startTime;
+
+				if (!e.shiftKey && typeof snapTimeToGrid === 'function') {
+					var snappedEnd = snapTimeToGrid(noteInfo.startTime + newLength,
+						typeof Timeline !== 'undefined' ? Timeline.getCurrentTrackIdx() : 0,
+						Canvas.snapThreshold);
+					newLength = snappedEnd - noteInfo.startTime;
+				}
 
 				newLength = Math.max(1 / gridSize, newLength);
 
@@ -3509,7 +3545,9 @@ document.addEventListener('mousedown', async e => {
 				select.dblClickNote = {
 					instIdx: selectedInstIdx,
 					noteIdx: newNoteIdx,
-					startTime: newNote[0]
+					startTime: newNote[0],
+					startMouseX: e.offsetX,
+					resizing: false
 				};
 
 				for (let ti = 0; ti < MIDI.data.length; ti++) {
@@ -3632,7 +3670,7 @@ document.addEventListener('mousedown', async e => {
 						
 						var partialXCheck = Canvas.offx + partial[0] * barSize;
 						var partialWCheck = partial[2] * barSize;
-						var partialHCheck = partial[3] * octaveSpacingStep;
+						var partialHCheck = partial[3] * Math.min(octaveSpacingStep, 10);
 						// Pri pozícii Y sa odčíta výška, aby partialYCheck bol horný okraj parciálu.
 						var partialYCheck = Canvas.offy - partial[1] * octaveSpacingStep - partialHCheck;
 						
@@ -3772,7 +3810,7 @@ document.addEventListener('mousedown', async e => {
 						var isInResizeRegion = isInLeftResizeRegion || isInRightResizeRegion;
 
 						// Pri oblastiach na zmenu veľkosti sa kontroluje rozsah Y na okraji.
-						if (isInResizeRegion && MIDI.data[iC3][jC3][4].partials[kC3][4]) {
+						if (isInResizeRegion) {
 							let topEdgeY = partialY;
 							let bottomEdgeY = partialY + partialH;
 							
@@ -3797,15 +3835,13 @@ document.addEventListener('mousedown', async e => {
 							if (topEdgeY < mouseY && mouseY < bottomEdgeY) {
 								clickedPartial = [iC3, jC3, kC3];
 
-								// Kontrola, či je už vybraný; ak áno, určí sa akcia presunu alebo zmeny veľkosti.
-								if (MIDI.data[iC3][jC3][4].partials[kC3][4]) {
-									if (mouseX < partialX + resizingRegionSize) {
-										resizingPartialLeft = [iC3, jC3, kC3];
-									} else if (mouseX > partialX + partialW - resizingRegionSize) {
-										resizingPartialRight = [iC3, jC3, kC3];
-									} else {
-										movingPartial = [iC3, jC3, kC3];
-									}
+								// Okraje menia veľkosť aj pri nevybranom parciáli; presun stredom vyžaduje výber.
+								if (mouseX < partialX + resizingRegionSize) {
+									resizingPartialLeft = [iC3, jC3, kC3];
+								} else if (mouseX > partialX + partialW - resizingRegionSize) {
+									resizingPartialRight = [iC3, jC3, kC3];
+								} else if (MIDI.data[iC3][jC3][4].partials[kC3][4]) {
+									movingPartial = [iC3, jC3, kC3];
 								}
 								break;
 							}
@@ -3816,8 +3852,8 @@ document.addEventListener('mousedown', async e => {
 				if (clickedPartial.length > 0) break;
 			}
 			// Klik na parciály.
-			if (clickedPartial.length > 0 && movingPartial.length === 0 &&
-				resizingPartialLeft.length === 0 && resizingPartialRight.length === 0) {
+			if (clickedPartial.length > 0 &&
+				!MIDI.data[clickedPartial[0]][clickedPartial[1]][4].partials[clickedPartial[2]][4]) {
 
 				for (iC3 = 0; iC3 < MIDI.data.length; iC3++) {
 					if (!MIDI.data[iC3]) continue;
@@ -3835,10 +3871,12 @@ document.addEventListener('mousedown', async e => {
 				}
 
 				MIDI.data[clickedPartial[0]][clickedPartial[1]][4].partials[clickedPartial[2]][4] = 1;
-				movingPartial = clickedPartial;
+				if (resizingPartialLeft.length === 0 && resizingPartialRight.length === 0) {
+					movingPartial = clickedPartial;
+				}
 
 				// Spustenie sínusového predprehrávania, ktoré znie počas držania; plná farba sa prehrá až pri mouseup.
-				if (window['switch-checkbox-headphones']?.checked) {
+				if (movingPartial.length > 0 && window['switch-checkbox-headphones']?.checked) {
 					const trackIdx = clickedPartial[0];
 					const clickedNote = MIDI.data[trackIdx][clickedPartial[1]];
 					const clickedPartialIdx = clickedPartial[2];
@@ -4573,3 +4611,7 @@ document.addEventListener('DOMContentLoaded', () => {
 if (typeof window !== 'undefined') {
 	window.updateIOFlowDiagram = updateIOFlowDiagram;
 }
+
+document.addEventListener('change', (e) => {
+	if (e.target && e.target.tagName === 'SELECT') e.target.blur();
+});

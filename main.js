@@ -99,6 +99,7 @@ function createWindow() {
 	});
 	mainWindow.webContents.on('did-fail-load', (e, code, desc, url) => logRenderer('[load-fail] ' + code + ' ' + desc + ' ' + url));
 	mainWindow.webContents.on('render-process-gone', (e, details) => logRenderer('[render-gone] ' + JSON.stringify(details)));
+	mainWindow.webContents.on('context-menu', (e) => { e.preventDefault(); });
 
     mainWindow.loadFile(path.join(__dirname, 'app', 'index.html'));
 

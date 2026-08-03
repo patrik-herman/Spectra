@@ -436,11 +436,31 @@ header h3 {
 	padding: 20px 25px;
 }
 
+.help-header {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: 12px;
+	margin-bottom: 8px;
+}
 .help-header h2 {
-	margin: 0 0 8px 0;
+	margin: 0;
 	font-size: 15px;
 	font-weight: 400;
 	color: #fff;
+}
+.help-docs-link {
+	color: #eba52c;
+	text-decoration: none;
+	border: 1px solid rgba(235, 165, 44, 0.5);
+	border-radius: 3px;
+	padding: 3px 10px;
+	font-size: 12px;
+	white-space: nowrap;
+}
+.help-docs-link:hover {
+	background: rgba(235, 165, 44, 0.15);
+	border-color: #eba52c;
 }
 .help-grid {
 	display: grid;

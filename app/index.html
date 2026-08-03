@@ -76,6 +76,7 @@
 
 		<div class="help-header">
 			<h2>Keyboard & Mouse Reference</h2>
+			<a href="https://spectraapp.net/docs/Spectra_Documentation.pdf" target="_blank" class="help-docs-link">Full documentation (PDF)</a>
 		</div>
 
 		<div class="help-grid">
@@ -110,6 +111,7 @@
 					<h4>Moving Notes</h4>
 					<div class="help-item"><kbd class="key">Up/Down</kbd> move to closest partial</div>
 					<div class="help-item"><kbd class="key">Shift+Up/Down</kbd> move by step</div>
+					<div class="help-item"><kbd class="key">Ctrl+Shift+Up/Down</kbd> transpose by octave</div>
 					<div class="help-item"><kbd class="key">Left/Right</kbd> move by grid</div>
 				</div>
 
@@ -148,6 +150,7 @@
 				<div class="help-section">
 					<h4>Navigation</h4>
 					<div class="help-item"><kbd>Ctrl+1/2/3</kbd> switch tabs</div>
+					<div class="help-item"><kbd class="key">Home</kbd> playhead to start</div>
 					<div class="help-item"><kbd class="key">Left/Right</kbd> move cursor by grid</div>
 					<div class="help-item"><kbd class="key">Shift+Left/Right</kbd> skip to event</div>
 				</div>
@@ -282,7 +285,7 @@
 				<i class="fa fa-download" aria-hidden="true"></i>
 			</button>
 			<div class="write-ui">
-				<span class="menu-ui switch switch-T" data-tooltip="Toggle Inactive">
+				<span class="menu-ui switch switch-T" data-tooltip="Hide inactive partials (T) - click through to buried notes">
 					<input id="switch-checkbox-T" type="checkbox" class="switch-checkbox switch-T" value="1"><label class="menu-ui-label" for="switch-checkbox-T">T</label>
 				</span>
 				<span class="menu-ui radio selection-mode-radio">
@@ -300,6 +303,9 @@
 		</div>
 		<div class="header-section header-section-middle">
 			<div class="playback-ui">
+				<span class="menu-ui switch playback-ui-tostart" data-tooltip="Go to start (Home)" aria-label="Go to start (Home)">
+					<button class="playback-tostart" type="button"><i class="fa fa-fast-backward" aria-hidden="true"></i></button>
+				</span>
 				<span class="menu-ui switch playback-ui-play" aria-label="Play/Pause" data-playing="false" data-type="continue">
 					<button class="playback-play" type="button" value="0"><i class="fa fa-play" aria-hidden="true"></i></button>
 				</span>

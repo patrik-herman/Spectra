@@ -4,6 +4,40 @@ var Setup = {
 	currentTuning: null,
 	currentTimbre: null,
 
+	resetEditors: () => {
+		Setup.currentTuning = null;
+		Setup.currentTimbre = null;
+
+		document.querySelectorAll('.tuning-editor-content, .timbre-editor-content, .grid-editor-content').forEach(pane => {
+			pane.querySelectorAll('input, textarea').forEach(el => {
+				if (el.type === 'checkbox' || el.type === 'radio') el.checked = el.defaultChecked;
+				else if (el.type !== 'button' && el.type !== 'file') el.value = el.defaultValue;
+			});
+			pane.querySelectorAll('select').forEach(el => { el.selectedIndex = 0; });
+		});
+
+		var fileLabel = document.querySelector('.tuning-file-name');
+		if (fileLabel) fileLabel.textContent = '';
+		var analysisStatus = document.querySelector('.audio-analysis-status');
+		if (analysisStatus) analysisStatus.textContent = '';
+
+		if (typeof EnvelopeUI !== 'undefined' && EnvelopeUI.loadFromTimbre) EnvelopeUI.loadFromTimbre(null);
+
+		if (typeof GridSystem !== 'undefined' && GridSystem.editor) {
+			GridSystem.editor.currentGrid = null;
+			if (GridSystem.editor.populateSelect) GridSystem.editor.populateSelect();
+		}
+
+		if (typeof EditorLists !== 'undefined') {
+			EditorLists.selectedTuning = null;
+			EditorLists.selectedTimbre = null;
+			EditorLists.selectedGrid = null;
+		}
+
+		if (Setup.timbre && Setup.timbre.render) Setup.timbre.render();
+		if (window.HarmonicsChart?.refreshFromSetup) window.HarmonicsChart.refreshFromSetup();
+	},
+
 	init: () => {
 		// Kontrola načítania util.js (poskytuje funkciu sel).
 		if (typeof sel === 'undefined') {
@@ -1293,17 +1327,18 @@ var Setup = {
 			var sortedNotes = [...notes].sort((a, b) => a[1] - b[1]);
 
 			var baseFreq = sortedNotes[0][1];
-			var periodNotes = [];
+			var centSet = new Set();
 
 			for (const note of sortedNotes) {
 				var ratio = note[1] / baseFreq;
-				if (ratio >= period) break;
-				if (ratio > 1.0000001) { // Kvôli float
-					const cents = 1200 * Math.log2(ratio);
-					periodNotes.push(cents);
+				while (ratio >= period) ratio /= period;
+				while (ratio < 1) ratio *= period;
+				if (ratio > 1.0000001) {
+					centSet.add(Math.round(1200 * Math.log2(ratio) * 1000) / 1000);
 				}
 			}
 
+			var periodNotes = [...centSet].sort((a, b) => a - b);
 			periodNotes.push(periodCents);
 
 			var scl = `! ${tuning.name}.scl\n`;
@@ -2233,8 +2268,8 @@ var Setup = {
 				
 				var cellMult = document.createElement('td');
 				var inputMult = document.createElement('input');
-				inputMult.type = 'number';
-				inputMult.step = '0.001';
+				inputMult.type = 'text';
+				inputMult.inputMode = 'decimal';
 				inputMult.value = partial[0];
 				inputMult.dataset.index = i;
 				inputMult.dataset.field = 'mult';
@@ -2265,11 +2300,21 @@ var Setup = {
 		updateValue: (e) => {
 			var index = parseInt(e.target.dataset.index);
 			var field = e.target.dataset.field;
-			var value = parseFloat(e.target.value);
-			
+			var raw = String(e.target.value).trim();
+			var value;
+			if (raw.includes('/')) {
+				var parts = raw.split('/');
+				var num = parseFloat(parts[0]);
+				var den = parseFloat(parts[1]);
+				value = (Number.isFinite(num) && Number.isFinite(den) && den !== 0) ? num / den : NaN;
+			} else {
+				value = parseFloat(raw);
+			}
+			if (!Number.isFinite(value)) return;
+
 			var data = Setup.timbre.getCurrentData();
 			if (!data || !data[index]) return;
-			
+
 			if (field === 'mult') {
 				data[index][0] = value;
 			} else if (field === 'amp') {
@@ -3949,7 +3994,8 @@ window.HarmonicsChart = (function () {
 			}
 		});
 
-		canvas.addEventListener('mousemove', e => {
+		window.addEventListener('mousemove', e => {
+			if (draggingPoint === null && !panning) return;
 			var rect = canvas.getBoundingClientRect(),
 				mx = e.clientX - rect.left,
 				my = e.clientY - rect.top;
@@ -3959,31 +4005,42 @@ window.HarmonicsChart = (function () {
 				p.y = Math.min(1, Math.max(0, yAt(my)));
 				if (e.shiftKey) p.x = Math.max(1, xAt(mx));
 				draw();
-			} else if (panning && panView) {
+				if (Setup.currentTimbre) {
+					Setup.timbre.setCurrentData(pts.map(q => [q.x, q.y]));
+					var ampInput = document.querySelector(`.timbre-partials-table input[data-field="amp"][data-index="${draggingPoint}"]`);
+					if (ampInput) ampInput.value = p.y.toFixed(3);
+					var multInput = document.querySelector(`.timbre-partials-table input[data-field="mult"][data-index="${draggingPoint}"]`);
+					if (multInput) multInput.value = p.x;
+				}
+			} else if (panView) {
 				// x sa posúva v logaritmickom priestore, teda rovnomerne voči logaritmickej osi.
 				var f = Math.exp(-(e.clientX - panX) / plotW() * (lg(panView.x2) - lg(panView.x1)));
 				clampX(panView.x1 * f, panView.x2 * f);
 				var dy = (e.clientY - panY) / plotH() * (panView.y2 - panView.y1);
 				clampY(panView.y1 + dy, panView.y2 + dy);
 				draw();
-			} else {
-				var hp = pointAt(mx, my);
-				if (hp !== hoverPoint) {
-					hoverPoint = hp;
-					canvas.style.cursor = hp === null ? '' : 'pointer';
-					draw();
-				}
 			}
 		});
 
-		canvas.addEventListener('mouseup', () => {
+		canvas.addEventListener('mousemove', e => {
+			if (draggingPoint !== null || panning) return;
+			var rect = canvas.getBoundingClientRect(),
+				mx = e.clientX - rect.left,
+				my = e.clientY - rect.top;
+			var hp = pointAt(mx, my);
+			if (hp !== hoverPoint) {
+				hoverPoint = hp;
+				canvas.style.cursor = hp === null ? '' : 'pointer';
+				draw();
+			}
+		});
+
+		window.addEventListener('mouseup', () => {
 			if (draggingPoint !== null) syncBackToSetup();
 			draggingPoint = null;
 			panning = false;
 		});
 		canvas.addEventListener('mouseleave', () => {
-			draggingPoint = null;
-			panning = false;
 			hoverPoint = null;
 		});
 
@@ -4055,10 +4112,18 @@ window.HarmonicsChart = (function () {
 
 	function refreshFromSetup() {
 		if (!canvas) return;
-		if (!Setup.currentTimbre) return;
+		if (!Setup.currentTimbre) {
+			pts = [];
+			draw();
+			return;
+		}
 
 		var data = Setup.timbre.getCurrentData();
-		if (!data || data.length == 0) return;
+		if (!data || data.length == 0) {
+			pts = [];
+			draw();
+			return;
+		}
 
 		pts = data.map(p => ({ x: p[0], y: p[1] }));
 

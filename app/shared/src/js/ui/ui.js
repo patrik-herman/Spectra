@@ -557,7 +557,7 @@ var UI = {
 			paneInstrumentClose.className = 'pane-instrument-close';
 			paneInstrumentStrip.className = 'pane-instrument-strip';
 
-			var paneInstrumentSpectrum = UI.select.getSpectra();
+			var paneInstrumentSpectrum = UI.select.getSpectra(DEFAULT_SPECTRUM);
 
 			var spectraList = DB.get('spectra');
 			var spectraListKeys = Object.keys(spectraList);

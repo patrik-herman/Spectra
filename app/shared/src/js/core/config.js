@@ -33,7 +33,7 @@ var N_TIME = 0,
 	N_HIDDEN = 7;
 
 // Predvolená farba novej stopy musí odkazovať na farbu, ktorá existuje v základných spektrách (pozri presets-instruments.js). Určuje sa len tu, aby predvoľby "spectrum: 'sawtooth'" neprestali platiť pri zmene sady presetov.
-var DEFAULT_SPECTRUM = 'harmonic16';
+var DEFAULT_SPECTRUM = 'pluck';
 
 // Formát parciálu: [x, y, width, heightFactor, selected, hover, locked].
 var P_X = 0,
@@ -67,14 +67,14 @@ var Config = {
 		wavSampleRates: [22050, 44100, 48000, 96000],
 	},
 	defaultSettings: {
-		grid: 'off',
+		grid: '16th',
 		scale: 'edo12',
 		playbackPitch: 0,
 		midiPitchCenter: 69,
 		partialLimit: 0,
 		orderedPartialsSelection: 0,
 		performanceMode: false,
-		playbackType: 'continue',
+		playbackType: 'return',
 		playbackSpeed: 1,
 		midiInputId: '',
 		midiOutputId: '',
@@ -87,8 +87,8 @@ var Config = {
 	},
 	defaultViewState: {
 		scrollPosition: 0,
-		// 8 oktáv pod výškou 0 pri predvolenom octaveSpacing 120, rovnako ako predvolené offy plátna, čím sa pohľad vycentruje okolo C4.
-		verticalScroll: 8 * 120,
+		// 6,5 oktávy pod výškou 0 pri predvolenom octaveSpacing 240, rovnako ako predvolené offy plátna, čím sa pohľad vycentruje okolo C4.
+		verticalScroll: 6.5 * 240,
 		playheadPosition: 0,
 		selectedTrack: 0
 	}

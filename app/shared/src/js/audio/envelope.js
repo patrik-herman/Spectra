@@ -229,10 +229,14 @@ var EnvelopeUI = {
 		var height = canvas.height / dpr;
 		var padding = 10;
 
-		var a = parseFloat(document.querySelector('.timbre-env-attack')?.value) || 0.005;
-		var d = parseFloat(document.querySelector('.timbre-env-decay')?.value) || 0;
-		var s = parseFloat(document.querySelector('.timbre-env-sustain')?.value) || 1;
-		var r = parseFloat(document.querySelector('.timbre-env-release')?.value) || 0.005;
+		var readEnv = (q, dflt) => {
+			var v = parseFloat(document.querySelector(q)?.value);
+			return Number.isFinite(v) ? v : dflt;
+		};
+		var a = readEnv('.timbre-env-attack', 0.005);
+		var d = readEnv('.timbre-env-decay', 0);
+		var s = readEnv('.timbre-env-sustain', 1);
+		var r = readEnv('.timbre-env-release', 0.005);
 
 		ctx.fillStyle = '#1a1a1a';
 		ctx.fillRect(0, 0, width, height);
