@@ -74,7 +74,12 @@ function createWindow() {
 	if (process.platform === 'darwin') {
 		Menu.setApplicationMenu(Menu.buildFromTemplate([
 			{ role: 'appMenu' },
-			{ role: 'editMenu' },
+			{ label: 'Edit', submenu: [
+				{ role: 'cut' },
+				{ role: 'copy' },
+				{ role: 'paste' },
+				{ role: 'selectAll' }
+			]},
 			{ role: 'windowMenu' }
 		]));
 	} else {

@@ -6,11 +6,6 @@ body:not([data-edition="full"]) .canvas-nav-kbd-up {
 	top: 25px;
 }
 
-
-body:not([data-edition="full"]) .timeline-info-global-label {
-	display: none !important;
-}
-
 .info-window {
 	position: absolute;
 	top: 33px;

@@ -1237,7 +1237,7 @@ var Canvas = {
 				var distancePath = new Path2D();
 				var selectedPartialPath = new Path2D();
 				var selectedPartialPathFaint = new Path2D(); // Pre obrysy aktívnych parciálov nevybraných stôp.
-				var spotlightPath = new Path2D();
+				var outlinePaths = new Map();
 
 				var hasAnySelectedNote = false;
 
@@ -1393,6 +1393,7 @@ var Canvas = {
 
 
 					var activePartialIdx = MIDInote[N_PARTIAL] - 1;
+					var noteVelFactor = Canvas.velocityToAlpha(MIDInote[N_DATA] && MIDInote[N_DATA].velocity !== undefined ? MIDInote[N_DATA].velocity : DEFAULT_VELOCITY);
 
 					for (let kC3 = midiNoteDataLen - 1; kC3 >= 0; kC3--) {
 						const partial = midiNoteData[kC3];
@@ -1467,8 +1468,14 @@ var Canvas = {
 						var noteIsBeingMovedForOutline = (select.moving || select.resizeLeft || select.resizeRight) && MIDInote[N_SEL];
 						if (kC3 === activePartialIdx && kC3 !== selectedPartialID && !noteIsBeingMovedForOutline) {
 							// Pre nevybrané stopy použiť jemnejší obrys.
-							var outlinePath = isTrackSelected ? selectedPartialPath : selectedPartialPathFaint;
-							Canvas.draw.rect(outlinePath,
+							var outlineAlpha = (isTrackSelected ? 1 : 0.08) * noteVelFactor;
+							var outlineKey = Math.round(outlineAlpha * 100);
+							var outlineEntry = outlinePaths.get(outlineKey);
+							if (!outlineEntry) {
+								outlineEntry = { path: new Path2D(), alpha: outlineKey / 100 };
+								outlinePaths.set(outlineKey, outlineEntry);
+							}
+							Canvas.draw.rect(outlineEntry.path,
 								60 + noteX + 1,
 								noteY + 0.5,
 								noteW -1,
@@ -1493,7 +1500,7 @@ var Canvas = {
 						var partialColor = partial[6] ? '#ff4444' : baseColor;
 						var partialAlphaFinal = partial[6] ? 1 : (isTrackSelected
 							? (isActivePartial ? 1 : alpha)
-							: alpha * NON_SELECTED_PARTIAL_ALPHA);
+							: alpha * NON_SELECTED_PARTIAL_ALPHA) * noteVelFactor;
 
 						var noteIsBeingMoved = (select.moving || select.resizeLeft || select.resizeRight) && MIDInote[N_SEL];
 
@@ -1585,13 +1592,6 @@ var Canvas = {
 								}
 							}
 
-							// Zvýraznenie (kláves S).
-							if (select?.spotlight?.active && Canvas._spotlightTarget) {
-								const t = Canvas._spotlightTarget;
-								if (iC3 === t.trackIdx && jC3 === t.noteIdx && kC3 === t.partialIdx) {
-									spotlightPath.rect(60.5 + noteX, noteY, noteW, noteH);
-								}
-							}
 						}
 					}
 
@@ -2150,16 +2150,15 @@ var Canvas = {
 				ctx.strokeStyle = "rgba(255, 255, 255, 0.08)";
 				ctx.stroke(selectedPartialPathFaint);
 
+				for (const outlineEntry of outlinePaths.values()) {
+					ctx.strokeStyle = rgbaWithAlpha('#ffffff', outlineEntry.alpha);
+					ctx.stroke(outlineEntry.path);
+				}
+
 				// Prerušované prekrytie uprostred výberu.
 				ctx.strokeStyle = rgbaWithAlpha("#ffffff", 0.8);
 				ctx.setLineDash([4, 2]);
 				ctx.stroke(dashedPath);
-
-				// Zvýraznenia spotlight, kreslené naraz.
-				ctx.strokeStyle = 'rgba(255, 255, 255, 0.45)';
-				ctx.setLineDash([]);
-				ctx.lineWidth = 1.5;
-				ctx.stroke(spotlightPath);
 
 				ctx.globalAlpha = 1.0;
 				ctx.setLineDash([]);
@@ -2613,7 +2612,9 @@ var Canvas = {
 		}
 
 		// Obnovenie kurzoru, ak nie je nad hranou na zmenu veľkosti a práve neprebieha presun ani zmena veľkosti nôt.
-		if (!overResizeEdge && !select.keyboard && !select.moving && !select.resizeLeft && !select.resizeRight) {
+		if (altKey && partialNumber) {
+			Canvas.canvas.style.cursor = 'ns-resize';
+		} else if (!overResizeEdge && !select.keyboard && !select.moving && !select.resizeLeft && !select.resizeRight) {
 			Canvas.canvas.style.cursor = 'default';
 		}
 	},
@@ -2841,6 +2842,9 @@ var Canvas = {
 							MIDI.data[iC6][jC6][N_PITCH] += 12;
 							for (mC6=0; mC6 < MIDInotePartials7.length; mC6++) {
 								MIDI.data[iC6][jC6][N_DATA].partials[mC6][1] += 12  // Pridá sa 12 poltónov.
+							}
+							if (typeof AdaptiveTuning !== 'undefined') {
+								AdaptiveTuning.refresh();
 							}
 							continue;
 						}
@@ -3112,6 +3116,9 @@ var Canvas = {
 							MIDI.data[iC7][jC7][N_PITCH] -= 12;
 							for (mC7=0; mC7 < MIDInotePartials9.length; mC7++) {
 								MIDI.data[iC7][jC7][N_DATA].partials[mC7][1] -= 12  // odčíta 12 poltónov (jednotky nôt);
+							}
+							if (typeof AdaptiveTuning !== 'undefined') {
+								AdaptiveTuning.refresh();
 							}
 							continue;
 						}
@@ -4076,12 +4083,6 @@ var Canvas = {
 		Canvas._selectionOscs.clear();
 	},
 
-	// Stav spotlightu, ktorý klávesa S zameria na zvýraznený alebo vybraný parciál.
-	_spotlightOsc: null,
-	_spotlightGain: null,
-	_spotlightNoteKey: null,
-	_spotlightTarget: null,  // { trackIdx, noteIdx, partialIdx }
-
 	// Nota pod pozíciou kurzora.
 	_findNoteAtPosition: (mouseX, mouseY) => {
 		// mouseX je už upravené (offsetX - 60).
@@ -4135,244 +4136,6 @@ var Canvas = {
 			}
 		}
 		return null;
-	},
-
-	// Prvý vybraný parciál pre spotlight.
-	_getFirstSelectedPartial: () => {
-		for (let i = 0; i < MIDI.data.length; i++) {
-			if (!instruments[i]?.selected) continue;
-
-			for (let j = 0; j < MIDI.data[i].length; j++) {
-				var note = MIDI.data[i][j];
-				if (!note[N_DATA]?.partials) continue;
-
-				// V režime T sa zohľadňuje iba aktívny parciál.
-				var activePartialIdx = note[N_PARTIAL] - 1;
-
-				for (let k = 0; k < note[N_DATA].partials.length; k++) {
-					if (!Canvas.partialBrightness && k !== activePartialIdx) continue;
-
-					if (note[N_DATA].partials[k][P_SEL]) {
-						return { trackIdx: i, noteIdx: j, partialIdx: k, note };
-					}
-				}
-			}
-		}
-		return null;
-	},
-
-	_getNoteFreq: (trackIdx, note, partialIdx) => {
-		var inst = instruments[trackIdx];
-		var timbre = spectra[inst?.spectrum];
-		var partialsData = (timbre && typeof DynamicTimbre !== 'undefined')
-			? DynamicTimbre.getPartialsAtPitch(timbre, note[N_PITCH])
-			: (typeof getTimbrePartials === 'function' ? getTimbrePartials(timbre, note[N_PITCH]) : (timbre?.data || [[1, 1]]));
-
-		var activePartialIdx = (note[N_PARTIAL] || 1) - 1;
-		var activePartialRatio = partialsData?.[activePartialIdx]?.[0] || 1;
-		var fundamentalFreq = note2freq(note[N_PITCH]) / activePartialRatio;
-
-		var pIdx = partialIdx !== undefined ? partialIdx : activePartialIdx;
-		var partialRatio = partialsData?.[pIdx]?.[0] || (pIdx + 1);
-		return fundamentalFreq * partialRatio;
-	},
-
-	startSpotlightPreview: () => {
-		var ctx = Tone.context?.rawContext;
-		if (!ctx) return;
-
-		var freq = null;
-		var noteKey = null;
-		var target = null;
-
-		// Je kurzor konkrétne nad parciálom?
-		if (partialNote && partialNumber) {
-			var trackIdx = -1;
-			var noteIdx = 0;
-			for (let i = 0; i < MIDI.data.length; i++) {
-				var idx = MIDI.data[i].indexOf(partialNote);
-				if (idx >= 0) {
-					trackIdx = i;
-					noteIdx = idx;
-					break;
-				}
-			}
-			if (trackIdx >= 0 && instruments[trackIdx]?.selected) {
-				// V režime T sa spotlight zameria iba na aktívny parciál.
-				var activePartialIdx = partialNote[N_PARTIAL] - 1;
-				var partialIdx = partialNumber - 1;
-				if (Canvas.partialBrightness || partialIdx === activePartialIdx) {
-					freq = Canvas._getNoteFreq(trackIdx, partialNote, partialIdx);
-					noteKey = `${trackIdx}-${noteIdx}-${partialNumber}`;
-					target = { trackIdx, noteIdx, partialIdx };
-				}
-			}
-		}
-		// Skontroluje sa nota pod kurzorom (s väčšou toleranciou) a použije sa najbližší parciál.
-		if (!freq && select?.offsetX !== undefined && select?.offsetY !== undefined) {
-			var noteInfo = Canvas._findNoteAtPosition(select.offsetX - 60, select.offsetY);
-			if (noteInfo) {
-				freq = Canvas._getNoteFreq(noteInfo.trackIdx, noteInfo.note, noteInfo.partialIdx);
-				noteKey = `${noteInfo.trackIdx}-${noteInfo.noteIdx}-${noteInfo.partialIdx}`;
-				target = { trackIdx: noteInfo.trackIdx, noteIdx: noteInfo.noteIdx, partialIdx: noteInfo.partialIdx };
-			}
-		}
-
-		// Ak sa nič nenašlo, použije sa vybraný parciál ako náhrada.
-		if (!freq) {
-			var selected = Canvas._getFirstSelectedPartial();
-			if (selected) {
-				freq = Canvas._getNoteFreq(selected.trackIdx, selected.note, selected.partialIdx);
-				noteKey = `selected-${selected.trackIdx}-${selected.noteIdx}-${selected.partialIdx}`;
-				target = { trackIdx: selected.trackIdx, noteIdx: selected.noteIdx, partialIdx: selected.partialIdx };
-			}
-		}
-
-		if (!freq) {
-			Canvas._spotlightTarget = null;
-			return;
-		}
-
-		Canvas._spotlightTarget = target;
-
-		var now = ctx.currentTime;
-		Canvas._spotlightOsc = ctx.createOscillator();
-		Canvas._spotlightGain = ctx.createGain();
-		Canvas._spotlightOsc.type = 'sine';
-		Canvas._spotlightOsc.frequency.value = freq;
-		Canvas._spotlightGain.gain.value = 0;
-		Canvas._spotlightOsc.connect(Canvas._spotlightGain);
-		Canvas._spotlightGain.connect(ctx.destination);
-		Canvas._spotlightOsc.start(now);
-
-		var rampStart = now + 0.02;
-		Canvas._spotlightGain.gain.setValueAtTime(0, rampStart);
-		Canvas._spotlightGain.gain.linearRampToValueAtTime(0.25, rampStart + 0.06);
-
-		Canvas._spotlightNoteKey = noteKey;
-	},
-
-	// Predprehrávanie spotlightu pri zmene tónu pod kurzorom.
-	updateSpotlightPreview: () => {
-		if (!select?.spotlight?.active) return;
-
-		var ctx = Tone.context?.rawContext;
-		if (!ctx) return;
-
-		var freq = null;
-		var noteKey = null;
-		var target = null;
-
-		// Kontrola, či kurzor nie je práve nad konkrétnym parciálom.
-		if (partialNote && partialNumber) {
-			var trackIdx = -1;
-			var noteIdx = 0;
-			for (let i = 0; i < MIDI.data.length; i++) {
-				var idx = MIDI.data[i].indexOf(partialNote);
-				if (idx >= 0) {
-					trackIdx = i;
-					noteIdx = idx;
-					break;
-				}
-			}
-			if (trackIdx >= 0 && instruments[trackIdx]?.selected) {
-				// V režime T mieri spotlight len na aktívny parciál.
-				var activePartialIdx = partialNote[N_PARTIAL] - 1;
-				var partialIdx = partialNumber - 1;
-				if (Canvas.partialBrightness || partialIdx === activePartialIdx) {
-					freq = Canvas._getNoteFreq(trackIdx, partialNote, partialIdx);
-					noteKey = `${trackIdx}-${noteIdx}-${partialNumber}`;
-					target = { trackIdx, noteIdx, partialIdx };
-				}
-			}
-		}
-		// Skontroluje sa tón pod kurzorom a použije sa najbližší parciál.
-		else if (select?.offsetX !== undefined && select?.offsetY !== undefined) {
-			var noteInfo = Canvas._findNoteAtPosition(select.offsetX - 60, select.offsetY);
-			if (noteInfo) {
-				freq = Canvas._getNoteFreq(noteInfo.trackIdx, noteInfo.note, noteInfo.partialIdx);
-				noteKey = `${noteInfo.trackIdx}-${noteInfo.noteIdx}-${noteInfo.partialIdx}`;
-				target = { trackIdx: noteInfo.trackIdx, noteIdx: noteInfo.noteIdx, partialIdx: noteInfo.partialIdx };
-			}
-		}
-
-		// Inak sa použije vybraný parciál.
-		if (!freq) {
-			var selected = Canvas._getFirstSelectedPartial();
-			if (selected) {
-				freq = Canvas._getNoteFreq(selected.trackIdx, selected.note, selected.partialIdx);
-				noteKey = `selected-${selected.trackIdx}-${selected.noteIdx}-${selected.partialIdx}`;
-				target = { trackIdx: selected.trackIdx, noteIdx: selected.noteIdx, partialIdx: selected.partialIdx };
-			}
-		}
-
-		// Žiadny výstup, teda len nechať doznieť.
-		if (!freq) {
-			Canvas._spotlightTarget = null;
-			if (Canvas._spotlightOsc && Canvas._spotlightGain) {
-				const now = ctx.currentTime;
-				var fadeStart = now + 0.02;
-				Canvas._spotlightGain.gain.setValueAtTime(Canvas._spotlightGain.gain.value, fadeStart);
-				Canvas._spotlightGain.gain.linearRampToValueAtTime(0, fadeStart + 0.08);
-			}
-			return;
-		}
-
-		Canvas._spotlightTarget = target;
-
-		// Výstup je rovnaký.
-		if (noteKey === Canvas._spotlightNoteKey && Canvas._spotlightOsc) {
-			const now = ctx.currentTime;
-			const rampTime = now + 0.02;
-			Canvas._spotlightGain.gain.setValueAtTime(Canvas._spotlightGain.gain.value, rampTime);
-			Canvas._spotlightGain.gain.linearRampToValueAtTime(0.25, rampTime + 0.04);
-			return;
-		}
-
-		// Iný výstup, teda crossfade na novú frekvenciu.
-		if (Canvas._spotlightOsc) {
-			const now = ctx.currentTime;
-			const rampTime = now + 0.02;
-			Canvas._spotlightOsc.frequency.setValueAtTime(Canvas._spotlightOsc.frequency.value, rampTime);
-			Canvas._spotlightOsc.frequency.linearRampToValueAtTime(freq, rampTime + 0.03);
-			Canvas._spotlightGain.gain.setValueAtTime(Canvas._spotlightGain.gain.value, rampTime);
-			Canvas._spotlightGain.gain.linearRampToValueAtTime(0.25, rampTime + 0.04);
-		} else {
-			Canvas.startSpotlightPreview();
-		}
-
-		Canvas._spotlightNoteKey = noteKey;
-	},
-
-	stopSpotlightPreview: () => {
-		Canvas._spotlightTarget = null;
-		if (!Canvas._spotlightOsc) return;
-
-		var ctx = Tone.context?.rawContext;
-		if (!ctx) return;
-
-		try {
-			var now = ctx.currentTime;
-			var currentGain = Canvas._spotlightGain.gain.value;
-			var fadeStart = now + 0.02;
-			var fadeEnd = fadeStart + 0.08;
-			Canvas._spotlightGain.gain.setValueAtTime(currentGain, fadeStart);
-			Canvas._spotlightGain.gain.linearRampToValueAtTime(0, fadeEnd);
-			try { Canvas._spotlightOsc.stop(fadeEnd + 0.05); } catch(e){}
-			setTimeout(() => {
-				try {
-					Canvas._spotlightOsc?.disconnect();
-					Canvas._spotlightGain?.disconnect();
-				} catch (e) {}
-				Canvas._spotlightOsc = null;
-				Canvas._spotlightGain = null;
-				Canvas._spotlightNoteKey = null;
-			}, 200);
-		} catch (e) {
-			Canvas._spotlightOsc = null;
-			Canvas._spotlightGain = null;
-			Canvas._spotlightNoteKey = null;
-		}
 	},
 
 	// Prepnutie zámku na vybraných parciáloch
@@ -4487,6 +4250,168 @@ var Canvas = {
 		}
 
 		DB.set('MIDIdata', MIDI.data, { skipUndo: true });
+	},
+
+	splitAtPlayhead: () => {
+		var playhead = typeof playback !== 'undefined' ? playback.time : 0;
+		var trackChanges = {};
+		var hasChanges = false;
+
+		for (var iS = 0; iS < MIDI.data.length; iS++) {
+			if (typeof instruments !== 'undefined' && instruments[iS] && !instruments[iS].selected) continue;
+
+			var track = MIDI.data[iS];
+			var originalLen = track.length;
+			for (var jS = 0; jS < originalLen; jS++) {
+				var note = track[jS];
+				if (!note || note.length < 5 || !note[N_DATA] || !note[N_DATA].partials) continue;
+
+				var start = note[N_TIME];
+				var end = note[N_TIME] + note[N_DUR];
+				if (!(start < playhead && playhead < end)) continue;
+
+				hasChanges = true;
+				var before = typeof UndoManager !== 'undefined' ? structuredClone(note) : null;
+				var leftDur = playhead - start;
+				var rightDur = end - playhead;
+
+				var rightData = structuredClone(note[N_DATA]);
+				for (var kS = 0; kS < rightData.partials.length; kS++) {
+					rightData.partials[kS][0] = playhead;
+					rightData.partials[kS][2] = rightDur;
+				}
+
+				note[N_DUR] = leftDur;
+				for (var lS = 0; lS < note[N_DATA].partials.length; lS++) {
+					note[N_DATA].partials[lS][2] = leftDur;
+				}
+
+				var newNote = [
+					playhead,
+					rightDur,
+					note[N_PITCH],
+					note[N_PARTIAL],
+					rightData,
+					note[N_SEL] || 0,
+					note[N_DEPTH] || 0,
+					note[N_HIDDEN] || 0
+				];
+				var newIdx = track.length;
+				track.push(newNote);
+
+				if (typeof UndoManager !== 'undefined') {
+					if (!trackChanges[iS]) trackChanges[iS] = [];
+					trackChanges[iS].push({ noteIndex: jS, before: before, after: structuredClone(note) });
+					trackChanges[iS].push({ noteIndex: newIdx, before: null, after: structuredClone(newNote) });
+				}
+			}
+		}
+
+		if (hasChanges) {
+			if (typeof UndoManager !== 'undefined' && Object.keys(trackChanges).length > 0) {
+				UndoManager.recordMultiTrackDelta('Split notes', trackChanges);
+			}
+			DB.set('MIDIdata', MIDI.data, { skipUndo: true });
+			if (typeof AdaptiveTuning !== 'undefined') AdaptiveTuning.refresh();
+		}
+	},
+
+	velocityDragScale: 0.5,
+	_velDrag: null,
+
+	velocityToAlpha: (velocity) => {
+		var v = Math.max(0, Math.min(127, velocity));
+		return 0.3 + 0.7 * (v / 127);
+	},
+
+	_collectVelocityTargets: (hoveredNote) => {
+		var targets = [];
+		for (var i = 0; i < MIDI.data.length; i++) {
+			for (var j = 0; j < MIDI.data[i].length; j++) {
+				var note = MIDI.data[i][j];
+				if (!note || !note[N_DATA] || !note[N_DATA].partials) continue;
+				var selected = note[N_SEL];
+				if (!selected) {
+					for (var k = 0; k < note[N_DATA].partials.length; k++) {
+						if (note[N_DATA].partials[k][4]) { selected = true; break; }
+					}
+				}
+				if (selected) targets.push({ i: i, j: j, note: note });
+			}
+		}
+		if (targets.length === 0 && hoveredNote && hoveredNote[N_DATA]) {
+			for (var ti = 0; ti < MIDI.data.length; ti++) {
+				var idx = MIDI.data[ti].indexOf(hoveredNote);
+				if (idx >= 0) { targets.push({ i: ti, j: idx, note: hoveredNote }); break; }
+			}
+		}
+		return targets;
+	},
+
+	beginVelocityDrag: (startY, hoveredNote) => {
+		var targets = Canvas._collectVelocityTargets(hoveredNote);
+		if (targets.length === 0) return false;
+		for (var t = 0; t < targets.length; t++) {
+			var tg = targets[t];
+			tg.base = tg.note[N_DATA].velocity !== undefined ? tg.note[N_DATA].velocity : DEFAULT_VELOCITY;
+			tg.beforeClone = typeof UndoManager !== 'undefined' ? structuredClone(tg.note) : null;
+		}
+		Canvas._velDrag = { startY: startY, targets: targets, changed: false };
+		return true;
+	},
+
+	updateVelocityDrag: (currentY) => {
+		var d = Canvas._velDrag;
+		if (!d) return;
+		var dy = currentY - d.startY;
+		for (var t = 0; t < d.targets.length; t++) {
+			var tg = d.targets[t];
+			var v = Math.round(tg.base - dy * Canvas.velocityDragScale);
+			v = Math.max(0, Math.min(127, v));
+			if (tg.note[N_DATA].velocity !== v) {
+				tg.note[N_DATA].velocity = v;
+				d.changed = true;
+			}
+		}
+	},
+
+	commitVelocityDrag: () => {
+		var d = Canvas._velDrag;
+		Canvas._velDrag = null;
+		if (!d || !d.changed) return;
+		if (typeof UndoManager !== 'undefined') {
+			var trackChanges = {};
+			for (var t = 0; t < d.targets.length; t++) {
+				var tg = d.targets[t];
+				if (!trackChanges[tg.i]) trackChanges[tg.i] = [];
+				trackChanges[tg.i].push({ noteIndex: tg.j, before: tg.beforeClone, after: structuredClone(tg.note) });
+			}
+			if (Object.keys(trackChanges).length > 0) UndoManager.recordMultiTrackDelta('Change velocity', trackChanges);
+		}
+		DB.set('MIDIdata', MIDI.data, { skipUndo: true });
+	},
+
+	resetVelocity: (hoveredNote) => {
+		var targets = Canvas._collectVelocityTargets(hoveredNote);
+		if (targets.length === 0) return;
+		var trackChanges = {};
+		var changed = false;
+		for (var t = 0; t < targets.length; t++) {
+			var tg = targets[t];
+			var beforeClone = typeof UndoManager !== 'undefined' ? structuredClone(tg.note) : null;
+			if (tg.note[N_DATA].velocity !== DEFAULT_VELOCITY) {
+				tg.note[N_DATA].velocity = DEFAULT_VELOCITY;
+				changed = true;
+			}
+			if (typeof UndoManager !== 'undefined') {
+				if (!trackChanges[tg.i]) trackChanges[tg.i] = [];
+				trackChanges[tg.i].push({ noteIndex: tg.j, before: beforeClone, after: structuredClone(tg.note) });
+			}
+		}
+		if (changed) {
+			if (typeof UndoManager !== 'undefined' && Object.keys(trackChanges).length > 0) UndoManager.recordMultiTrackDelta('Reset velocity', trackChanges);
+			DB.set('MIDIdata', MIDI.data, { skipUndo: true });
+		}
 	},
 
 	// Kvantizácia v čase do mriežky.

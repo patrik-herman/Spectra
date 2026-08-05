@@ -442,6 +442,7 @@ header h3 {
 	justify-content: space-between;
 	gap: 12px;
 	margin-bottom: 8px;
+	padding-right: 40px;
 }
 .help-header h2 {
 	margin: 0;
@@ -450,17 +451,14 @@ header h3 {
 	color: #fff;
 }
 .help-docs-link {
-	color: #eba52c;
+	color: #888;
 	text-decoration: none;
-	border: 1px solid rgba(235, 165, 44, 0.5);
-	border-radius: 3px;
-	padding: 3px 10px;
 	font-size: 12px;
 	white-space: nowrap;
 }
 .help-docs-link:hover {
-	background: rgba(235, 165, 44, 0.15);
-	border-color: #eba52c;
+	color: #f7f7f7;
+	text-decoration: underline;
 }
 .help-grid {
 	display: grid;
@@ -2910,7 +2908,6 @@ button.button-red:focus {
 }
 .io-flow-input,
 .io-flow-output {
-	 width: 130px;
 	 padding: 3px 6px;
 	 background: #222;
 	 border: none;
@@ -3787,6 +3784,11 @@ main .pane .pane-instrument-close {
 	padding: 0 4px;
 }
 .midi-remove-btn-subtle:hover { color: #aaa; }
+.midi-mpe-btn {
+	flex-grow: 0;
+	padding: 3px 9px;
+	margin-right: 4px;
+}
 .midi-permission-help.error { color: #f96; }
 .midi-permission-help.warning { color: #fc6; }
 .midi-retry-btn {

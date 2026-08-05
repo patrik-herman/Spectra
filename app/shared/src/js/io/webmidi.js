@@ -83,6 +83,171 @@ var WebMIDI = {
 		return ch;
 	},
 
+	_activeInput: null,
+	mpeDeviceConfig: {},
+
+	deviceMpeOut: (output) => {
+		if (!output.mpe) {
+			var saved = WebMIDI.mpeDeviceConfig[output.id];
+			output.mpe = {
+				enabled: !!(saved && saved.enabled),
+				bendRange: (saved && saved.bendRange) || 48,
+				channels: (saved && saved.channels) || 15,
+				_counts: null, _voices: new Map()
+			};
+		}
+		return output.mpe;
+	},
+
+	deviceMpeIn: (input) => {
+		if (!input.mpe) {
+			var saved = WebMIDI.mpeDeviceConfig[input.id];
+			input.mpe = {
+				enabled: !!(saved && saved.enabled),
+				bendRange: (saved && saved.bendRange) || 48,
+				_channels: null
+			};
+		}
+		return input.mpe;
+	},
+
+	bendToSemitones: (bend14, range) => ((bend14 - 8192) / 8192) * range,
+
+	freqToBend: (midiNote, exactFreq, range) => {
+		if (!exactFreq || exactFreq <= 0) return 8192;
+		var noteInt = Math.round(midiNote);
+		var nearestNoteFreq = 440 * Math.pow(2, (noteInt - 69) / 12);
+		var deviationCents = 1200 * Math.log2(exactFreq / nearestNoteFreq);
+		var centsPerUnit = (range * 200) / 16384;
+		return Math.max(0, Math.min(16383, 8192 + Math.round(deviationCents / centsPerUnit)));
+	},
+
+	_allocChannelFor: (output) => {
+		var m = WebMIDI.deviceMpeOut(output);
+		if (!m._counts) m._counts = new Array(16).fill(0);
+		var n = Math.max(1, Math.min(15, m.channels));
+		var best = 1, bc = Infinity;
+		for (var ch = 1; ch <= n; ch++) { if (m._counts[ch] < bc) { bc = m._counts[ch]; best = ch; } }
+		m._counts[best]++;
+		return best;
+	},
+
+	_freeChannelFor: (output, ch) => {
+		var m = output.mpe;
+		if (m && m._counts && m._counts[ch] > 0) m._counts[ch]--;
+	},
+
+	_sendRpnTo: (output, ch, rpnMsb, rpnLsb, data) => {
+		WebMIDI.safeSend(output, [0xB0 | ch, 0x65, rpnMsb]);
+		WebMIDI.safeSend(output, [0xB0 | ch, 0x64, rpnLsb]);
+		WebMIDI.safeSend(output, [0xB0 | ch, 0x06, data]);
+		WebMIDI.safeSend(output, [0xB0 | ch, 0x26, 0x00]);
+		WebMIDI.safeSend(output, [0xB0 | ch, 0x65, 0x7F]);
+		WebMIDI.safeSend(output, [0xB0 | ch, 0x64, 0x7F]);
+	},
+
+	sendMPEConfigTo: (output) => {
+		var m = WebMIDI.deviceMpeOut(output);
+		var n = Math.max(1, Math.min(15, m.channels));
+		var range = Math.max(1, Math.min(96, m.bendRange));
+		WebMIDI._sendRpnTo(output, 0, 0x00, 0x06, n);
+		WebMIDI._sendRpnTo(output, 0, 0x00, 0x00, 2);
+		for (var ch = 1; ch <= n; ch++) WebMIDI._sendRpnTo(output, ch, 0x00, 0x00, range);
+	},
+
+	sendAllMPEConfigs: () => {
+		(WebMIDI.selectedOutputs || []).forEach(o => { if (o.mpe && o.mpe.enabled) WebMIDI.sendMPEConfigTo(o); });
+	},
+
+	_collectMpeDeviceConfig: () => {
+		var out = {};
+		(WebMIDI.selectedOutputs || []).forEach(o => { if (o.mpe) out[o.id] = { enabled: o.mpe.enabled, bendRange: o.mpe.bendRange, channels: o.mpe.channels }; });
+		(WebMIDI.selectedInputs || []).forEach(i => { if (i.mpe) out[i.id] = { enabled: i.mpe.enabled, bendRange: i.mpe.bendRange }; });
+		return out;
+	},
+
+	openMpeWindow: (device, isInput) => {
+		var section = sel('.mpeSection');
+		if (!section) return;
+		var m = isInput ? WebMIDI.deviceMpeIn(device) : WebMIDI.deviceMpeOut(device);
+		var title = sel('.mpe-window-title'); if (title) title.textContent = isInput ? 'MPE Input' : 'MPE Output';
+		var body = sel('.mpe-window-body');
+		if (body) {
+			var rows = '<label style="display:flex;align-items:center;gap:8px;margin:4px 0 16px;color:#ccc;cursor:pointer;">' +
+				'<input type="checkbox" class="mpe-win-enable"' + (m.enabled ? ' checked' : '') + '><span>MPE ON</span></label>';
+			if (!isInput) {
+				rows += '<div style="display:flex;align-items:center;justify-content:space-between;margin:10px 0;color:#888;font-size:12px;">' +
+					'<span>Member channels</span><input type="number" class="mpe-win-channels" min="1" max="15" value="' + m.channels + '" style="width:56px;"></div>';
+			}
+			rows += '<div style="display:flex;align-items:center;justify-content:space-between;margin:10px 0;color:#888;font-size:12px;">' +
+				'<span>Bend range</span><input type="number" class="mpe-win-bend" min="1" max="96" value="' + m.bendRange + '" style="width:56px;"></div>';
+			body.innerHTML = rows;
+			var enable = body.querySelector('.mpe-win-enable');
+			var bend = body.querySelector('.mpe-win-bend');
+			var chans = body.querySelector('.mpe-win-channels');
+			var apply = () => {
+				if (isInput) WebMIDI.mpeInReset(device);
+				else if (m.enabled) WebMIDI.sendMPEConfigTo(device);
+				WebMIDI.saveSettings();
+				if (isInput) WebMIDI.updateInputsListUI(); else WebMIDI.updateOutputsListUI();
+			};
+			if (enable) enable.addEventListener('change', (e) => { m.enabled = e.target.checked; apply(); });
+			if (bend) bend.addEventListener('change', (e) => { m.bendRange = Math.max(1, Math.min(96, parseInt(e.target.value, 10) || 48)); e.target.value = m.bendRange; apply(); });
+			if (chans) chans.addEventListener('change', (e) => { m.channels = Math.max(1, Math.min(15, parseInt(e.target.value, 10) || 15)); e.target.value = m.channels; apply(); });
+		}
+		section.classList.remove('hidden');
+		var closeBtn = sel('.mpe-window-close');
+		if (closeBtn) closeBtn.onclick = () => section.classList.add('hidden');
+	},
+
+	_bendForFreqTo: (output, midiNote, exactFreq, ch, range) => {
+		var bend = WebMIDI.freqToBend(midiNote, exactFreq, range);
+		WebMIDI.safeSend(output, [0xE0 | ch, bend & 0x7F, (bend >> 7) & 0x7F]);
+	},
+
+	_noteOnTo: (output, note, velocity, ch) => {
+		var n = Math.round(note);
+		if (n < 0 || n > 127) return;
+		WebMIDI.safeSend(output, [0x90 | ch, n, velocity]);
+	},
+
+	_noteOffTo: (output, note, ch) => {
+		var n = Math.round(note);
+		if (n < 0 || n > 127) return;
+		WebMIDI.safeSend(output, [0x80 | ch, n, 0]);
+	},
+
+	_mpeInChannel: (input, ch) => {
+		var m = WebMIDI.deviceMpeIn(input);
+		if (!m._channels) m._channels = [];
+		if (!m._channels[ch]) m._channels[ch] = { bend: 8192, bendRange: m.bendRange, rpnMsb: 0x7F, rpnLsb: 0x7F };
+		return m._channels[ch];
+	},
+
+	mpeInPitch: (input, note, channel) => {
+		if (!input) return note;
+		var st = WebMIDI._mpeInChannel(input, channel);
+		return note + WebMIDI.bendToSemitones(st.bend, st.bendRange);
+	},
+
+	mpeInHandlePitchBend: (input, bend14, channel) => {
+		WebMIDI._mpeInChannel(input, channel).bend = bend14;
+	},
+
+	mpeInHandleCC: (input, cc, value, channel) => {
+		var st = WebMIDI._mpeInChannel(input, channel);
+		if (cc === 0x65) { st.rpnMsb = value; return true; }
+		if (cc === 0x64) { st.rpnLsb = value; return true; }
+		if ((cc === 0x06 || cc === 0x26) && st.rpnMsb === 0 && st.rpnLsb === 0) {
+			if (cc === 0x06) st.bendRange = value + (st.bendRange - Math.floor(st.bendRange));
+			else st.bendRange = Math.floor(st.bendRange) + value / 100;
+			return true;
+		}
+		return false;
+	},
+
+	mpeInReset: (input) => { if (input && input.mpe) input.mpe._channels = null; },
+
 	outputFilter: {
 		trackMode: 'all',        // All / custom.
 		tracks: [],              // Pole indexov stôp v režime 'custom'.
@@ -668,6 +833,12 @@ var WebMIDI = {
 			item.querySelector('.midi-remove-btn').title = 'Remove this input';
 			item.querySelector('.midi-remove-btn').addEventListener('click', () => WebMIDI.removeInput(input.id));
 
+			var mpeBtnI = item.querySelector('.midi-mpe-btn');
+			if (mpeBtnI) {
+				mpeBtnI.classList.toggle('selected', !!WebMIDI.deviceMpeIn(input).enabled);
+				mpeBtnI.addEventListener('click', () => WebMIDI.openMpeWindow(input, true));
+			}
+
 			container.appendChild(item);
 		});
 	},
@@ -691,6 +862,7 @@ var WebMIDI = {
 			WebMIDI.saveSettings();
 			WebMIDI.updateOutputsListUI();
 			WebMIDI.populateDropdowns(); // Obnova dropdownu kvôli skrytiu pridaných položiek.
+			if (WebMIDI.deviceMpeOut(output).enabled) WebMIDI.sendMPEConfigTo(output);
 			if (typeof updateIOFlowDiagram === 'function') updateIOFlowDiagram();
 		}
 	},
@@ -737,6 +909,12 @@ var WebMIDI = {
 			removeBtn.className = 'midi-remove-btn-subtle';
 			removeBtn.addEventListener('click', () => WebMIDI.removeOutput(output.id));
 
+			var mpeBtnO = item.querySelector('.midi-mpe-btn');
+			if (mpeBtnO) {
+				mpeBtnO.classList.toggle('selected', !!WebMIDI.deviceMpeOut(output).enabled);
+				mpeBtnO.addEventListener('click', () => WebMIDI.openMpeWindow(output, false));
+			}
+
 			container.appendChild(item);
 		});
 	},
@@ -774,6 +952,7 @@ var WebMIDI = {
 
 	handleMIDIMessage: (e, sourceInput) => {
 		WebMIDI.flashInputIndicator(sourceInput);
+		WebMIDI._activeInput = sourceInput;
 
 		var data = e.data;
 		var status = data[0];
@@ -824,6 +1003,7 @@ var WebMIDI = {
 				break;
 
 			case 0xB0: // Control Change
+				if (sourceInput && sourceInput.mpe && sourceInput.mpe.enabled) WebMIDI.mpeInHandleCC(sourceInput, data1, data2, channel);
 				if (WebMIDI.onControlChange) {
 					WebMIDI.onControlChange(data1, data2, channel);
 				}
@@ -845,6 +1025,7 @@ var WebMIDI = {
 
 			case 0xE0: // Pitch Bend
 				var bend = (data2 << 7) | data1;
+				if (sourceInput && sourceInput.mpe && sourceInput.mpe.enabled) WebMIDI.mpeInHandlePitchBend(sourceInput, bend, channel);
 				if (WebMIDI.onPitchBend) {
 					WebMIDI.onPitchBend(bend, channel);
 				}
@@ -1576,7 +1757,8 @@ var WebMIDI = {
 			outputTrackMode: WebMIDI.outputFilter.trackMode,
 			outputTracks: WebMIDI.outputFilter.tracks,
 			outputPartialMode: WebMIDI.outputFilter.partialMode,
-			outputPartials: WebMIDI.outputFilter.partials
+			outputPartials: WebMIDI.outputFilter.partials,
+			mpeDevices: WebMIDI._collectMpeDeviceConfig()
 		};
 
 		try {
@@ -1605,6 +1787,8 @@ var WebMIDI = {
 		} catch (e) {
 			Logger.warn('Failed to load MIDI settings:', e);
 		}
+
+		WebMIDI.mpeDeviceConfig = settings.mpeDevices || {};
 
 		if (settings.channel !== undefined) {
 			WebMIDI.channel = settings.channel;
@@ -2316,13 +2500,21 @@ var OSC = {
 					}
 				}
 
+				for (const output of WebMIDI.selectedOutputs) {
+					var m = WebMIDI.deviceMpeOut(output);
+					var useMpe = m.enabled;
+					var voices = useMpe ? [] : null;
+					for (const partial of partials) {
+						var ch = useMpe ? WebMIDI._allocChannelFor(output) : WebMIDI.channel;
+						var range = useMpe ? m.bendRange : 2;
+						WebMIDI._bendForFreqTo(output, partial.midiNote, partial.frequency, ch, range);
+						WebMIDI._noteOnTo(output, partial.midiNote, velocity, ch);
+						if (voices) voices.push({ channel: ch, midiNote: partial.midiNote });
+					}
+					if (voices) m._voices.set(note, voices);
+				}
+
 				for (const partial of partials) {
-
-					// Pitch bend musí byť pred note on.
-					WebMIDI.sendPitchBendForFreq(partial.midiNote, partial.frequency);
-
-					WebMIDI.noteOn(partial.midiNote, velocity);
-
 					WebMIDI.sendSysExNoteOn(
 						instrumentIndex,
 						partial.midiNote,
@@ -2367,9 +2559,20 @@ var OSC = {
 					}
 				}
 
-				for (const partial of partials) {
-					WebMIDI.noteOff(partial.midiNote);
+				for (const output of WebMIDI.selectedOutputs) {
+					var m = WebMIDI.deviceMpeOut(output);
+					if (m.enabled) {
+						var voices = m._voices.get(note);
+						if (voices) {
+							for (const v of voices) { WebMIDI._noteOffTo(output, v.midiNote, v.channel); WebMIDI._freeChannelFor(output, v.channel); }
+							m._voices.delete(note);
+						}
+					} else {
+						for (const partial of partials) WebMIDI._noteOffTo(output, partial.midiNote, WebMIDI.channel);
+					}
+				}
 
+				for (const partial of partials) {
 					WebMIDI.sendSysExNoteOff(
 						instrumentIndex,
 						partial.midiNote,

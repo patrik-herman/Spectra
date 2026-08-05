@@ -133,6 +133,19 @@ var UI = {
 			var selectedBtn = sel('.export-format .ui-choice-option.selected');
 			return selectedBtn ? selectedBtn.dataset.value : 'audio';
 		},
+		defaultPartialsForFormat: (format) => {
+			return format === 'midi' ? 'active-partials' : 'all-partials';
+		},
+		applyDefaultPartialsForFormat: (format) => {
+			var group = sel('.export-from-partials');
+			if (!group) return;
+			var want = UI.export.defaultPartialsForFormat(format);
+			group.querySelectorAll('.ui-choice-option').forEach(el => el.classList.remove('selected'));
+			var target = group.querySelector('[data-value="' + want + '"]');
+			if (target) target.classList.add('selected');
+			var custom = sel('.export-partials-custom');
+			if (custom) custom.style.display = 'none';
+		},
 		getQuantization: () => {
 			var selectedBtn = sel('.musicxml-quantize .ui-choice-option.selected');
 			var value = selectedBtn ? selectedBtn.dataset.value : 'off';
@@ -159,6 +172,10 @@ var UI = {
 		getMidiPitchBend: () => {
 			var checkbox = sel('.midi-export-pitchbend');
 			return checkbox ? checkbox.checked : true;
+		},
+		getMidiSplitChannels: () => {
+			var checkbox = sel('.midi-export-split');
+			return checkbox ? checkbox.checked : false;
 		},
 		updateMusicXMLOptions: () => {
 			var format = UI.export.getFormat();
@@ -375,7 +392,8 @@ var UI = {
 				} else if (format === 'midi') {
 					updateProgress({ percent: 50, status: 'Generating MIDI...' });
 					var includePitchBend = UI.export.getMidiPitchBend();
-					MIDIExport.exportMIDI(partialMode, filename, tracks, includePitchBend);
+					var splitChannels = UI.export.getMidiSplitChannels();
+					MIDIExport.exportMIDI(partialMode, filename, tracks, includePitchBend, splitChannels);
 					updateProgress({ percent: 100, status: 'Complete' });
 				} else if (format === 'musicxml') {
 					updateProgress({ percent: 50, status: 'Generating MusicXML...' });

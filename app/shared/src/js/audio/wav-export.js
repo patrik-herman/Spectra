@@ -91,6 +91,8 @@ var WavExport = {
 		}
 
 		var notePitch = note[N_PITCH];
+		var noteData = note[N_DATA];
+		var velocityScale = (noteData && noteData.velocity !== undefined ? noteData.velocity : DEFAULT_VELOCITY) / 127;
 		var spectrumData = typeof DynamicTimbre !== 'undefined'
 			? DynamicTimbre.getPartialsAtPitch(timbre, notePitch)
 			: (typeof getTimbrePartials === 'function' ? getTimbrePartials(timbre, notePitch) : (timbre.data || [[1, 1]]));
@@ -145,7 +147,7 @@ var WavExport = {
 			
 			if (include) {
 				var partialFreqRatio = spectrumData[k][0];
-				var partialAmplitude = spectrumData[k][1];
+				var partialAmplitude = spectrumData[k][1] * velocityScale;
 				var freq = fundamentalFreq * partialFreqRatio;
 				
 				if (isFinite(freq) && freq > 0) {
@@ -1269,7 +1271,7 @@ var MIDIExport = {
 
 	// Exportuje ako Standard MIDI File (Formát 1, viacstopový); viackanálová alokácia pitch bendu bráni poškodeniu polyfónneho bendu
 	// čistá funkcia bez DOM, vracia { bytes, notes, skippedCount, pitchBendClampedCount } alebo null, ak nie sú žiadne noty.
-	buildMIDIBytes: function(mode, filename, tracks, includePitchBend = true) {
+	buildMIDIBytes: function(mode, filename, tracks, includePitchBend = true, splitChannels = false) {
 		var { notes, skippedCount } = this.getNotesForExport(mode, tracks);
 		if (notes.length === 0) return null;
 
@@ -1350,6 +1352,7 @@ var MIDIExport = {
 		var channelBend = new Array(16).fill(8192);
 		var channelNoteCount = new Array(16).fill(0);
 		var midiEvents = [];
+		var usedChannels = new Set();
 
 		for (const ev of timeline) {
 			var nd = noteData[ev.idx];
@@ -1408,6 +1411,7 @@ var MIDIExport = {
 
 				// Note-on
 				channelNoteCount[assignedCh]++;
+				usedChannels.add(assignedCh);
 				midiEvents.push({
 					tick: ev.tick,
 					data: [0x90 | assignedCh, nd.midiNote, nd.velocity],
@@ -1416,38 +1420,63 @@ var MIDIExport = {
 			}
 		}
 
+		if (includePitchBend) {
+			for (const ch of usedChannels) {
+				midiEvents.push({ tick: 0, data: [0xB0 | ch, 0x65, 0], sortOrder: -1 });
+				midiEvents.push({ tick: 0, data: [0xB0 | ch, 0x64, 0], sortOrder: -1 });
+				midiEvents.push({ tick: 0, data: [0xB0 | ch, 0x06, 2], sortOrder: -1 });
+				midiEvents.push({ tick: 0, data: [0xB0 | ch, 0x26, 0], sortOrder: -1 });
+			}
+		}
+
 		// Zoradenie udalostí podľa tiku, potom podľa sortOrder.
 		midiEvents.sort((a, b) => a.tick !== b.tick ? a.tick - b.tick : a.sortOrder - b.sortOrder);
 
 		// Konverzia na delta časy.
-		var noteTrackEvents = [];
-		var lastTick = 0;
-		for (const event of midiEvents) {
-			var delta = event.tick - lastTick;
-			lastTick = event.tick;
-			noteTrackEvents.push({ delta, data: event.data });
+		var toDeltaTrack = function(events) {
+			var out = [];
+			var lastTick = 0;
+			for (const event of events) {
+				out.push({ delta: event.tick - lastTick, data: event.data });
+				lastTick = event.tick;
+			}
+			out.push({ delta: 0, data: [0xFF, 0x2F, 0x00] });
+			return out;
+		};
+
+		var noteTracks = [];
+		if (splitChannels) {
+			var groups = new Map();
+			for (const event of midiEvents) {
+				var ch = event.data[0] & 0x0F;
+				if (!groups.has(ch)) groups.set(ch, []);
+				groups.get(ch).push(event);
+			}
+			var chKeys = Array.from(groups.keys()).sort((a, b) => a - b);
+			for (const ch of chKeys) noteTracks.push(toDeltaTrack(groups.get(ch)));
+		} else {
+			noteTracks.push(toDeltaTrack(midiEvents));
 		}
 
-		noteTrackEvents.push({ delta: 0, data: [0xFF, 0x2F, 0x00] });
+		var numTracks = 1 + noteTracks.length;
 
 		var fileData = [];
 
 		fileData.push(0x4D, 0x54, 0x68, 0x64); // "MThd"
 		fileData.push(0x00, 0x00, 0x00, 0x06); // Dĺžka hlavičky
 		fileData.push(0x00, 0x01); // Formát 1
-		fileData.push(0x00, 0x02); // 2 stopy
+		fileData.push((numTracks >> 8) & 0xFF, numTracks & 0xFF);
 		fileData.push((ticksPerBeat >> 8) & 0xFF, ticksPerBeat & 0xFF);
 
 		fileData.push(...this.buildTrackChunk(tempoTrackEvents));
 
-		// Stopa s notami.
-		fileData.push(...this.buildTrackChunk(noteTrackEvents));
+		for (const nt of noteTracks) fileData.push(...this.buildTrackChunk(nt));
 
 		return { bytes: fileData, notes: notes, skippedCount: skippedCount, pitchBendClampedCount: pitchBendClampedCount };
 	},
 
-	exportMIDI: function(mode, filename, tracks, includePitchBend = true) {
-		var result = this.buildMIDIBytes(mode, filename, tracks, includePitchBend);
+	exportMIDI: function(mode, filename, tracks, includePitchBend = true, splitChannels = false) {
+		var result = this.buildMIDIBytes(mode, filename, tracks, includePitchBend, splitChannels);
 		if (!result) {
 			showStatus('No notes to export.', { type: 'warning' });
 			return;
@@ -2330,7 +2359,7 @@ var MusicXMLExport = {
 document.addEventListener('keydown', e => {
 	// Nespúšťa sa pri písaní do vstupných polí.
 	if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
-	if (e.ctrlKey && e.shiftKey && e.key === 'E') {
+	if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'E') {
 		e.preventDefault();
 		var UI = window.UI;
 		if (UI?.export?.open) UI.export.open();

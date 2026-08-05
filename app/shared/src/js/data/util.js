@@ -20,6 +20,27 @@ function validateVelocity(velocity) {
 	return Math.max(0, Math.min(127, Math.round(velocity)));
 }
 
+function midiToScaleFreq(scaleNotes, midiNote, pitchCenter) {
+	var rootIndex = 0, rootDistance = Infinity;
+	for (var i = 0; i < scaleNotes.length; i++) {
+		var d = Math.abs(Math.log2(scaleNotes[i][1] / 440));
+		if (d < rootDistance) { rootDistance = d; rootIndex = i; }
+	}
+	var n = scaleNotes.length;
+	var targetIndex = rootIndex + (midiNote - pitchCenter);
+	if (targetIndex >= 0 && targetIndex < n) return scaleNotes[targetIndex][1];
+	var first = scaleNotes[0][1], last = scaleNotes[n - 1][1];
+	var period = (last > first) ? (last / first) : 2;
+	if (targetIndex < 0) {
+		var octDown = Math.ceil(-targetIndex / n);
+		var idxD = ((targetIndex % n) + n) % n;
+		return scaleNotes[idxD][1] / Math.pow(period, octDown);
+	}
+	var octUp = Math.floor(targetIndex / n);
+	var idxU = targetIndex % n;
+	return scaleNotes[idxU][1] * Math.pow(period, octUp);
+}
+
 function validateTime(time, minValue = 0) {
 	if (typeof time !== 'number' || isNaN(time)) {
 		return minValue;
@@ -595,6 +616,7 @@ window.loadMIDIFile = loadMIDIFile;
 window.showStatus = showStatus;
 window.validateMidiNote = validateMidiNote;
 window.validateVelocity = validateVelocity;
+window.midiToScaleFreq = midiToScaleFreq;
 window.validateTime = validateTime;
 window.validateMidiNoteArray = validateMidiNoteArray;
 window.setReferenceA = setReferenceA;

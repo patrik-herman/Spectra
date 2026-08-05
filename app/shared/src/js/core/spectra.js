@@ -89,10 +89,6 @@ var headerButtons = sel('.header-button', true),
 			wasPlaying: false,
 			loopCheckboxWasOn: false
 		},
-		spotlight: {
-			active: false,
-			savedVolume: 0
-		},
 	},
 	shiftKey = false,
 	altKey = false,
@@ -1075,6 +1071,9 @@ document.addEventListener('click', e => {
 			if (typeof UI !== 'undefined' && UI.export && UI.export.updateMusicXMLOptions) {
 				UI.export.updateMusicXMLOptions();
 			}
+			if (typeof UI !== 'undefined' && UI.export && UI.export.applyDefaultPartialsForFormat) {
+				UI.export.applyDefaultPartialsForFormat(t.dataset.value);
+			}
 		} else if (t.parentNode.classList.contains('musicxml-quantize')) {
 			if (typeof UI !== 'undefined' && UI.export && UI.export.updateQuantizeTuningSelect) {
 				UI.export.updateQuantizeTuningSelect();
@@ -1480,6 +1479,9 @@ async function togglePlayback() {
 			SpectraOSC.sendTransportStart(playback.time);
 		}
 	} else {
+		if (typeof window.midiRecording !== 'undefined' && window.midiRecording && window.midiRecording.active) {
+			window.midiRecording.stop();
+		}
 		playback.midiTime = playback.time;
 		var now = Tone.now();
 		for (let i = 0; i < MIDI.data.length; i++) {
@@ -1509,15 +1511,15 @@ document.addEventListener('keydown', e => {
 
 	// Skratky, ktoré musia fungovať aj v inputoch, bez výnimky: Ctrl+1/2/3 (navigácia), Ctrl+S (uložiť)
 	// 49=1, 50=2, 51=3, 83=S.
-	var isNavigationShortcut = e.ctrlKey && (e.keyCode === 49 || e.keyCode === 50 || e.keyCode === 51);
-	var isSaveShortcut = e.ctrlKey && e.keyCode === 83;
+	var isNavigationShortcut = (e.ctrlKey || e.metaKey) && (e.keyCode === 49 || e.keyCode === 50 || e.keyCode === 51);
+	var isSaveShortcut = (e.ctrlKey || e.metaKey) && e.keyCode === 83;
 
 	// Ak je aktívne vstupné pole a nejde o navigačnú skratku ani o skratku na uloženie, ponechá sa to na prehliadači (kvôli úprave textu).
 	if (isInInput && !isNavigationShortcut && !isSaveShortcut) {
 		return;
 	}
 
-	if (window.computerKeyboardMode && !e.ctrlKey && !e.shiftKey && !e.altKey) {
+	if (window.computerKeyboardMode && !(e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey) {
 		var ckKey = e.key?.toLowerCase();
 		if (ckKey && ckKey.length === 1 && ckKey >= 'a' && ckKey <= 'z' && ckKey !== 'm') {
 			return;
@@ -1527,13 +1529,13 @@ document.addEventListener('keydown', e => {
 	if (Spectra.callHooks('keyDown', e, { shiftKey: shiftKey, ctrlKey: ctrlKey, altKey: altKey })) {
 		shiftKey = e.shiftKey;
 		altKey = e.altKey;
-		ctrlKey = e.ctrlKey;
+		ctrlKey = (e.ctrlKey || e.metaKey);
 		return;
 	}
 
 	// Ctrl+1/2/3 na prepínanie záložiek musí fungovať vždy
 	// 49=1, 50=2, 51=3.
-	if (e.ctrlKey && (e.keyCode === 49 || e.keyCode === 50 || e.keyCode === 51)) {
+	if ((e.ctrlKey || e.metaKey) && (e.keyCode === 49 || e.keyCode === 50 || e.keyCode === 51)) {
 		e.preventDefault();
 		var buttons = sel('.header-section-tabs .header-button[data-page]', true);
 		if (e.keyCode === 49 && buttons[0]) buttons[0].click(); // I/O
@@ -1543,7 +1545,7 @@ document.addEventListener('keydown', e => {
 	}
 
 	// Ctrl+Z - Undo (90=Z).
-	if (e.ctrlKey && !e.shiftKey && e.keyCode === 90) {
+	if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.keyCode === 90) {
 		e.preventDefault();
 		if (typeof UndoManager !== 'undefined') {
 			UndoManager.undo();
@@ -1552,7 +1554,7 @@ document.addEventListener('keydown', e => {
 	}
 
 	// Ctrl+Y alebo Ctrl+Shift+Z - Redo (89=Y, 90=Z).
-	if ((e.ctrlKey && e.keyCode === 89) || (e.ctrlKey && e.shiftKey && e.keyCode === 90)) {
+	if (((e.ctrlKey || e.metaKey) && e.keyCode === 89) || ((e.ctrlKey || e.metaKey) && e.shiftKey && e.keyCode === 90)) {
 		e.preventDefault();
 		if (typeof UndoManager !== 'undefined') {
 			UndoManager.redo();
@@ -1561,7 +1563,7 @@ document.addEventListener('keydown', e => {
 	}
 
 	// Ctrl+Shift+K spustí panic pre MIDI aj zvuk a zastaví všetky znejúce noty (75=K).
-	if (e.ctrlKey && e.shiftKey && e.keyCode === 75) {
+	if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.keyCode === 75) {
 		e.preventDefault();
 		// Zastavia sa všetky noty z PlaybackManager, teda z AudioWorkletu aj z Tone.js.
 		if (typeof PlaybackManager !== 'undefined') {
@@ -1602,7 +1604,7 @@ document.addEventListener('keydown', e => {
 	}
 
 	// Ctrl+C/V/X/S musia fungovať vždy, nezávisle od toho, čo je momentálne aktívne (67=C, 86=V, 88=X, 83=S).
-	var isGlobalShortcut = e.ctrlKey && (e.keyCode === 67 || e.keyCode === 86 || e.keyCode === 88 || e.keyCode === 83);
+	var isGlobalShortcut = (e.ctrlKey || e.metaKey) && (e.keyCode === 67 || e.keyCode === 86 || e.keyCode === 88 || e.keyCode === 83);
 
 	if (!isGlobalShortcut && e.target && e.target.tagName) {
 		var tag = e.target.tagName.toLowerCase();
@@ -1610,17 +1612,17 @@ document.addEventListener('keydown', e => {
 	}
 
 
-	if ((e.shiftKey || e.ctrlKey) && pageNumber === 2) {
+	if ((e.shiftKey || (e.ctrlKey || e.metaKey)) && pageNumber === 2) {
 		e.preventDefault();
 		e.stopPropagation();
 	}
 	
 	// Zistí sa, či bol práve stlačený Ctrl (kvôli tooltipu).
-	var ctrlJustPressed = e.ctrlKey && !ctrlKey;
+	var ctrlJustPressed = (e.ctrlKey || e.metaKey) && !ctrlKey;
 
 	shiftKey = e.shiftKey;
 	altKey = e.altKey;
-	ctrlKey = e.ctrlKey;
+	ctrlKey = (e.ctrlKey || e.metaKey);
 
 	// Pri stlačení Ctrl sa znovu skontroluje, čo je pod kurzorom, kvôli tooltipu.
 	if (ctrlJustPressed && select.offsetX && select.offsetY) {
@@ -1639,25 +1641,25 @@ document.addEventListener('keydown', e => {
 		if (typeof Canvas !== 'undefined') Canvas.keepPlayheadInView();
 	}
 	// Pri Ctrl+Up sa vyberie najbližší vyšší parciál pri vybraných notách.
-	else if (e.keyCode === 38 && e.ctrlKey && !e.shiftKey && !e.altKey) {
+	else if (e.keyCode === 38 && (e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey) {
 		e.preventDefault();
 		Canvas.shiftPartialSelection(1);
 		if (window['switch-checkbox-headphones'].checked) Canvas.previewChordPartials();
 	}
 	// Pri Ctrl+Down sa vyberie najbližší nižší parciál pri vybraných notách.
-	else if (e.keyCode === 40 && e.ctrlKey && !e.shiftKey && !e.altKey) {
+	else if (e.keyCode === 40 && (e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey) {
 		e.preventDefault();
 		Canvas.shiftPartialSelection(-1);
 		if (window['switch-checkbox-headphones'].checked) Canvas.previewChordPartials();
 	}
 	// Pri Ctrl+Alt+Up sa vybrané noty posunú o 10 centov vyššie.
-	else if (e.keyCode === 38 && e.ctrlKey && e.altKey) {
+	else if (e.keyCode === 38 && (e.ctrlKey || e.metaKey) && e.altKey) {
 		e.preventDefault();
 		Canvas.nudgeSelectedNotes(0.1);
 		if (window['switch-checkbox-headphones'].checked) Canvas.previewChordPartials();
 	}
 	// Pri Ctrl+Alt+Down sa vybrané noty posunú o 10 centov nižšie.
-	else if (e.keyCode === 40 && e.ctrlKey && e.altKey) {
+	else if (e.keyCode === 40 && (e.ctrlKey || e.metaKey) && e.altKey) {
 		e.preventDefault();
 		Canvas.nudgeSelectedNotes(-0.1);
 		if (window['switch-checkbox-headphones'].checked) Canvas.previewChordPartials();
@@ -1715,12 +1717,12 @@ document.addEventListener('keydown', e => {
 		}
 	}
 	// Shift+Q kvantizuje vybrané noty na aktuálne ladenie.
-	else if (e.shiftKey && !e.ctrlKey && e.keyCode === 81) {
+	else if (e.shiftKey && !(e.ctrlKey || e.metaKey) && e.keyCode === 81) {
 		e.preventDefault();
 		Canvas.quantizeToTuning();
 	}
 	// Q kvantizuje vybrané noty na aktuálnu mriežku (bez Shift).
-	else if (!e.shiftKey && !e.ctrlKey && e.keyCode === 81) {
+	else if (!e.shiftKey && !(e.ctrlKey || e.metaKey) && e.keyCode === 81) {
 		e.preventDefault();
 		Canvas.quantizeToGrid();
 	}
@@ -1756,7 +1758,7 @@ document.addEventListener('keydown', e => {
 		document.getElementById("switch-checkbox-magnet").checked = Canvas.magnetMode;
 	}
 	// M prepína režim Computer Keyboard.
-	else if (e.keyCode === 77 && !e.shiftKey && !e.ctrlKey) {
+	else if (e.keyCode === 77 && !e.shiftKey && !(e.ctrlKey || e.metaKey)) {
 		const checkbox = document.getElementById('switch-checkbox-computer-keyboard');
 		if (checkbox) {
 			checkbox.checked = !checkbox.checked;
@@ -1766,6 +1768,9 @@ document.addEventListener('keydown', e => {
 	// L prepne zámok na vybraných parciáloch.
 	else if (e.keyCode === 76 && !ctrlKey) {
 		Canvas.togglePartialLock();
+	}
+	else if (e.keyCode === 82 && !(e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey) {
+		if (window.midiRecording && window.midiRecording.toggle) window.midiRecording.toggle();
 	}
 	// P prehrá základné tóny vybraných nôt.
 	else if (e.keyCode === 80) {
@@ -1787,22 +1792,9 @@ document.addEventListener('keydown', e => {
 		e.preventDefault();
 		togglePlayback();
 	}
-	// Klávesa S stlmí mix a zameria sa na parciál pod kurzorom alebo na vybraný parciál.
-	else if (e.keyCode === 83 && !e.ctrlKey && !e.shiftKey) {
+	else if (e.keyCode === 83 && !(e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey) {
 		e.preventDefault();
-		if (select.spotlight.active) return; // Už je aktívny.
-
-		select.spotlight.active = true;
-		select.spotlight.savedVolume = masterVolumeValue;
-
-		if (masterVolume && masterVolume.volume) {
-			masterVolume.volume.rampTo(-30, 0.05); // Stlmí na -30 dB za 50 ms.
-		}
-
-		// Spustí sa spotlight oscilátor, ak je kurzor nad parciálom.
-		if (typeof Canvas !== 'undefined' && Canvas.startSpotlightPreview) {
-			Canvas.startSpotlightPreview();
-		}
+		if (typeof Canvas !== 'undefined' && Canvas.splitAtPlayhead) Canvas.splitAtPlayhead();
 	}
 	// Ctrl + A vyberie všetky noty vo vybraných stopách.
 	else if (ctrlKey && e.keyCode === 65) {
@@ -2045,7 +2037,7 @@ document.addEventListener('keydown', e => {
 			radioButtons[settings.orderedPartialsSelection].classList.add('selected');
 		}
 	}
-	else if (e.code === 'KeyD' && !e.ctrlKey && !e.metaKey && !e.altKey) { 
+	else if (e.code === 'KeyD' && !(e.ctrlKey || e.metaKey) && !e.metaKey && !e.altKey) { 
 		Canvas.duplicateNotes();
 	}
 });
@@ -2054,32 +2046,18 @@ document.addEventListener('keyup', e => {
 		e.preventDefault();
 		shiftKey = e.shiftKey;
 		altKey = e.altKey;
-		ctrlKey = e.ctrlKey;
+		ctrlKey = (e.ctrlKey || e.metaKey);
 		return;
 	}
 
-	// Pustená klávesa S ukončuje spotlight.
-	if (e.keyCode === 83 && select.spotlight.active) {
-		e.preventDefault();
-		select.spotlight.active = false;
-
-		if (masterVolume && masterVolume.volume) {
-			masterVolume.volume.rampTo(select.spotlight.savedVolume, 0.08); // Obnoví sa po 80 ms.
-		}
-
-		if (typeof Canvas !== 'undefined' && Canvas.stopSpotlightPreview) {
-			Canvas.stopSpotlightPreview();
-		}
-	}
-
 	// Po pustení Ctrl sa tooltip skryje.
-	if (!e.ctrlKey && ctrlKey) {
+	if (!(e.ctrlKey || e.metaKey) && ctrlKey) {
 		hoverTooltip.visible = false;
 	}
 
 	shiftKey = e.shiftKey;
 	altKey = e.altKey;
-	ctrlKey = e.ctrlKey;
+	ctrlKey = (e.ctrlKey || e.metaKey);
 });
 window.onload = async () => {
 	await DB.init();
@@ -2325,7 +2303,7 @@ function initVolumeControl() {
 	// Klávesová skratka na stlmenie (Ctrl+M).
 	document.addEventListener('keydown', (e) => {
 		if ((e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) && !e.target.readOnly) return;
-		if ((e.key === 'm' || e.key === 'M') && e.ctrlKey && !e.shiftKey) {
+		if ((e.key === 'm' || e.key === 'M') && (e.ctrlKey || e.metaKey) && !e.shiftKey) {
 			e.preventDefault();
 			muteBtn.click();
 		}
@@ -2720,7 +2698,7 @@ function iso226({ freq, spl = null, phon = null, reverse = false }) {
 
 // Globálne sa zabráni tomu, aby prehliadač pri Ctrl+koliesko priblížil obraz.
 document.addEventListener('wheel', e => {
-	if (e.ctrlKey) {
+	if ((e.ctrlKey || e.metaKey)) {
 		e.preventDefault();
 	}
 }, {passive: false});
@@ -2787,7 +2765,7 @@ window.addEventListener('wheel', e => {
 		}
 
 		// Pri Ctrl+Alt+scroll v hlavnej zóne plátna sa približujú obe osi.
-		if (e.ctrlKey && e.altKey) {
+		if ((e.ctrlKey || e.metaKey) && e.altKey) {
 			// Vertikálne priblíženie
 			var oldOctaveSpacing = octaveSpacing;
 			if (e.deltaY < 0) octaveSpacing *= zoomFactor;
@@ -2831,7 +2809,7 @@ window.addEventListener('wheel', e => {
 		}
 
 		// Pri Ctrl+Shift+scroll v hlavnej zóne plátna sa približuje vertikálne.
-		if (e.ctrlKey && e.shiftKey) {
+		if ((e.ctrlKey || e.metaKey) && e.shiftKey) {
 			const old = octaveSpacing;
 			if (e.deltaY < 0) octaveSpacing *= zoomFactor;
 			else octaveSpacing /= zoomFactor;
@@ -2845,7 +2823,7 @@ window.addEventListener('wheel', e => {
 		}
 
 		// Pri Ctrl+scroll v hlavnej zóne plátna sa približuje horizontálne.
-		if (e.ctrlKey && !e.shiftKey) {
+		if ((e.ctrlKey || e.metaKey) && !e.shiftKey) {
 			const old = barSize;
 			if (e.deltaY < 0) barSize *= zoomFactor;
 			else barSize /= zoomFactor;
@@ -2861,7 +2839,7 @@ window.addEventListener('wheel', e => {
 		}
 
 		// Bežné posúvanie bez modifikátorov posúva náhľad.
-		if (!e.ctrlKey && !e.altKey) {
+		if (!(e.ctrlKey || e.metaKey) && !e.altKey) {
 			var deltaXClamped = Math.max(-scrollSize, Math.min(scrollSize, e.deltaX));
 			var deltaYClamped = Math.max(-scrollSize, Math.min(scrollSize, e.deltaY));
 
@@ -2919,6 +2897,11 @@ function canvasMouseMove(e) {
 
 	if (e.target.tagName && e.target.tagName.toLowerCase() === 'canvas' && e.target.id === 'canvasElement') {
 		if (!Canvas.canvas) return;
+
+		if (select.velocityDragging) {
+			if (Canvas.updateVelocityDrag) Canvas.updateVelocityDrag(e.offsetY);
+			return;
+		}
 
 		// Ťahanie stredným tlačidlom myši na voľné posúvanie.
 		if (select.middleDrag) {
@@ -3134,17 +3117,19 @@ function canvasMouseMove(e) {
 		select.offsetX = clampedOffsetX;
 		select.offsetY = e.offsetY;
 		Canvas.checkPartialHover(clampedOffsetX, e.offsetY);
-		if (select.spotlight.active && Canvas.updateSpotlightPreview) {
-			Canvas.updateSpotlightPreview();
-		}
 	}
 }
 document.addEventListener('mousemove', canvasMouseMove);
 document.addEventListener('dblclick', e => {
 	var t = e.target;
-	if (e.ctrlKey) return;
+	if ((e.ctrlKey || e.metaKey)) return;
 	if (t.tagName && t.tagName.toLowerCase() === 'canvas' && t.id === 'canvasElement') {
 		if (!Canvas.canvas) return;
+
+		if (e.altKey) {
+			if (typeof Canvas !== 'undefined' && Canvas.resetVelocity) Canvas.resetVelocity(partialNumber ? partialNote : null);
+			return;
+		}
 
 		// Dvojklik na zónu kláves resetuje vertikálne priblíženie.
 		if (e.offsetX < 60) {
@@ -3462,7 +3447,7 @@ document.addEventListener('mousedown', async e => {
 		var allowNoteCreation = !isOverPartial;
 		// Debounce, aby sa predišlo dvojitému vytvoreniu noty (prestávka 500 ms).
 		var noteCreationDebounce = now_ts - select.lastNoteCreationTime > 500;
-		if (isDoubleClick && noteCreationDebounce && !e.ctrlKey && e.offsetX >= 60 && e.offsetY <= Canvas.cssHeight - timeRegionHeight && allowNoteCreation) {
+		if (isDoubleClick && noteCreationDebounce && !(e.ctrlKey || e.metaKey) && e.offsetX >= 60 && e.offsetY <= Canvas.cssHeight - timeRegionHeight && allowNoteCreation) {
 			select.lastNoteCreationTime = now_ts;
 			var selectedInstIdx = 0;
 			for (let i = 0; i < instruments.length; i++) {
@@ -3636,6 +3621,12 @@ document.addEventListener('mousedown', async e => {
 		select.resizeRight = false;
 		select.tempLoopStart = null;
 		select.tempLoopEnd = null;
+		if (e.altKey && typeof Canvas !== 'undefined' && Canvas.beginVelocityDrag && Canvas.beginVelocityDrag(e.offsetY, partialNumber ? partialNote : null)) {
+			select.velocityDragging = true;
+			select.selecting = false;
+			if (Canvas.canvas) Canvas.canvas.style.cursor = 'ns-resize';
+			return;
+		}
 		var now = Tone.now();
 		if (!playback.playing) {
 			playback.time = Math.max(0, (e.offsetX - 60.5 - Canvas.offx)/barSize);
@@ -3701,7 +3692,7 @@ document.addEventListener('mousedown', async e => {
 			}
 		}
 		// Prehrá sa na aktuálnej pozícii, ale nie vtedy, ak práve ide o Ctrl+ťahanie duplikátu.
-		if (e.ctrlKey && !potentialMovePartial) {
+		if ((e.ctrlKey || e.metaKey) && !potentialMovePartial) {
 			const mouseX = e.offsetX - 60.5;
 			const mouseY = e.offsetY;
 			var mouseTime = (mouseX - Canvas.offx) / barSize;
@@ -3944,7 +3935,7 @@ document.addEventListener('mousedown', async e => {
 
 				// Ctrl+ťahanie znamená duplikovanie vybraných nôt.
 				var duplicatedKeys = new Set(); // Atribúty v tvare 'stopa:finálnyIndex' pre noty vytvorené daným gestom.
-				if (e.ctrlKey) {
+				if ((e.ctrlKey || e.metaKey)) {
 					var duplicatedNotes = []; // Zoznam vytvorených nôt.
 
 					for (let i = 0; i < MIDI.data.length; i++) {
@@ -4119,6 +4110,12 @@ document.addEventListener('mousedown', async e => {
 document.addEventListener('mouseup', e => {
 	if (Canvas.canvas) Canvas.canvas.style.cursor = 'default';
 	var t = e.target;
+
+	if (select.velocityDragging) {
+		if (typeof Canvas !== 'undefined' && Canvas.commitVelocityDrag) Canvas.commitVelocityDrag();
+		select.velocityDragging = false;
+		return;
+	}
 
 	// Prepojenie pre tutoriály a rozšírenia.
 	if (t.tagName && t.tagName.toLowerCase() === 'canvas' && t.id === 'canvasElement') {
@@ -4359,6 +4356,8 @@ function resetAllGestureStates() {
 	select.moving = false;
 	select.resizeLeft = false;
 	select.resizeRight = false;
+	select.velocityDragging = false;
+	if (typeof Canvas !== 'undefined') Canvas._velDrag = null;
 	select.dblClickCreating = false;
 	select.dblClickNote = null;
 	select.dragTrackedNotes = null;

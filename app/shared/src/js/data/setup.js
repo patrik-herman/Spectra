@@ -2965,30 +2965,8 @@ document.addEventListener('DOMContentLoaded', () => {
 						return midiNote;
 					}
 
-					// Najbližší tón v stupnici sa hľadá podľa frekvencie, takže funguje pri ľubovoľnom rozlíšení ladenia.
-					var targetFreq = 440 * Math.pow(2, (midiNote - 69) / 12);
-
-					// Binárne vyhľadávanie najbližšej frekvencie.
-					var lo = 0, hi = scaleNotes.length - 1;
-					while (lo < hi) {
-						var mid = (lo + hi) >>> 1;
-						if (scaleNotes[mid][1] < targetFreq) lo = mid + 1;
-						else hi = mid;
-					}
-
-					// Porovnanie indexov lo a lo-1, ktorý z nich je bližšie.
-					var bestIdx = lo;
-					if (lo > 0) {
-						var distLo = Math.abs(Math.log2(scaleNotes[lo][1] / targetFreq));
-						var distPrev = Math.abs(Math.log2(scaleNotes[lo - 1][1] / targetFreq));
-						if (distPrev < distLo) bestIdx = lo - 1;
-					}
-
-					var result = freq2note_440(scaleNotes[bestIdx][1]);
-					if (Math.abs(result - midiNote) > 0.01) {
-						Logger.log('snapMidiToTuning: snapped', midiNote.toFixed(2), '->', result.toFixed(2), 'tuning:', tuningKey, 'scaleNotes:', scaleNotes.length);
-					}
-					return result;
+					var pitchCenter = window.midiPitchCenter ?? 69;
+					return freq2note_440(window.midiToScaleFreq(scaleNotes, midiNote, pitchCenter));
 				};
 
 				window.snapMidiToPartial = (midiNote, time) => {
@@ -3207,7 +3185,7 @@ document.addEventListener('DOMContentLoaded', () => {
 							NOTE_MIN_LENGTH,
 							notePitch,
 							partialNum, // Číslo parciálu (z partialInfo alebo 1 pre fundamentál).
-							null, // Dáta parciálov sa generujú v canvas.js.
+							{ velocity: (typeof validateVelocity === 'function' ? validateVelocity(velocity) : velocity) },
 							0, // Nevybrané
 							0  // Hĺbka
 						];
@@ -3238,7 +3216,8 @@ document.addEventListener('DOMContentLoaded', () => {
 						if (note[N_DUR] < NOTE_MIN_LENGTH) note[N_DUR] = NOTE_MIN_LENGTH;
 
 						// Odstránenie cache parciálov, aby sa parciály znova vygenerovali z prichytených dát.
-						note[N_DATA] = null;
+						var recVelocity = note[N_DATA] && note[N_DATA].velocity !== undefined ? note[N_DATA].velocity : undefined;
+						note[N_DATA] = recVelocity !== undefined ? { velocity: recVelocity } : null;
 
 						// Nota sa označí za dokončenú, aby sa neprehrala dvakrát.
 						window.midiRecording.finalizedNotes.add(`${instIdx}-${noteIdx}`);
@@ -3302,14 +3281,18 @@ document.addEventListener('DOMContentLoaded', () => {
 					var snappedPitch;
 					var partialInfo = null;
 
+					var _mpeSrc = (typeof WebMIDI !== 'undefined') ? WebMIDI._activeInput : null;
+					var inNote = (_mpeSrc && _mpeSrc.mpe && _mpeSrc.mpe.enabled && channel != null)
+						? WebMIDI.mpeInPitch(_mpeSrc, note, channel) : note;
+
 					if (window.midiPartialMode && window.snapMidiToPartial) {
-						var result = window.snapMidiToPartial(note, currentTime);
+						var result = window.snapMidiToPartial(inNote, currentTime);
 						snappedPitch = result.pitch;
 						partialInfo = result.partialInfo;
 					} else {
 						// Bežný režim ladenia odovzdá instIdx na vyhľadanie farby.
 						snappedPitch = window.snapMidiToTuning ?
-							window.snapMidiToTuning(note, currentTime, instIdx) : note;
+							window.snapMidiToTuning(inNote, currentTime, instIdx) : note;
 					}
 
 					// Uloženie mapovania, aby bolo možné ukončiť správny tón.

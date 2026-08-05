@@ -84,7 +84,9 @@
 				<div class="help-section">
 					<h4>Playback</h4>
 					<div class="help-item"><kbd>Space</kbd> play/stop</div>
-
+					<div class="help-item"><kbd class="key">R</kbd> record MIDI input</div>
+					<div class="help-item"><kbd>Ctrl+M</kbd> mute output</div>
+					<div class="help-item"><kbd>Ctrl+Shift+K</kbd> panic (stop all notes)</div>
 				</div>
 
 				<div class="help-section">
@@ -92,7 +94,6 @@
 					<div class="help-item"><kbd class="key">P</kbd> play fundamentals of selected</div>
 					<div class="help-item"><kbd class="key">O</kbd> play partials of selected</div>
 					<div class="help-item"><kbd class="key">H</kbd> toggle audio preview</div>
-					<div class="help-item"><kbd class="key">S</kbd> spotlight (hold to hear partial)</div>
 				</div>
 
 				<div class="help-section">
@@ -100,6 +101,7 @@
 					<div class="help-item"><kbd>Ctrl+A</kbd> select all in track</div>
 					<div class="help-item"><kbd>Ctrl+C/X/V</kbd> copy/cut/paste</div>
 					<div class="help-item"><kbd>D</kbd> duplicate</div>
+					<div class="help-item"><kbd class="key">S</kbd> split notes at playhead</div>
 					<div class="help-item"><kbd>Del</kbd> delete selected</div>
 					<div class="help-item"><kbd class="key">L</kbd> lock partials</div>
 					<div class="help-item"><kbd>Ctrl+Z</kbd> undo</div>
@@ -111,7 +113,10 @@
 					<h4>Moving Notes</h4>
 					<div class="help-item"><kbd class="key">Up/Down</kbd> move to closest partial</div>
 					<div class="help-item"><kbd class="key">Shift+Up/Down</kbd> move by step</div>
+					<div class="help-item"><kbd class="key">Ctrl+Up/Down</kbd> select nearest partial</div>
 					<div class="help-item"><kbd class="key">Ctrl+Shift+Up/Down</kbd> transpose by octave</div>
+					<div class="help-item"><kbd class="key">Alt+Up/Down</kbd> nudge tuning ±1 cent</div>
+					<div class="help-item"><kbd class="key">Ctrl+Alt+Up/Down</kbd> nudge tuning ±10 cents</div>
 					<div class="help-item"><kbd class="key">Left/Right</kbd> move by grid</div>
 				</div>
 
@@ -164,7 +169,9 @@
 					<div class="help-item"><kbd>Ctrl+Click</kbd> preview chord</div>
 					<div class="help-item"><kbd>Double-click</kbd> create note</div>
 					<div class="help-item"><kbd>Drag</kbd> move notes</div>
-					<div class="help-item"><kbd>Alt+Drag</kbd> duplicate</div>
+					<div class="help-item"><kbd>Ctrl+Drag</kbd> duplicate</div>
+					<div class="help-item"><kbd>Alt+Drag</kbd> up/down set velocity</div>
+					<div class="help-item"><kbd>Alt+Double-click</kbd> reset velocity</div>
 					<div class="help-item"><kbd>Drag edge</kbd> resize</div>
 				</div>
 
@@ -235,6 +242,13 @@
 			</label>
 			<p style="margin-top: 8px; font-size: 12px; color: #888;">
 				When enabled, pitch bend events are added to approximate microtonal frequencies.
+			</p>
+			<label style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin-top: 8px;">
+				<input type="checkbox" class="midi-export-split">
+				<span>Separate track per channel</span>
+			</label>
+			<p style="margin-top: 8px; font-size: 12px; color: #888;">
+				For synths without per-voice retuning: load each track into its own instance.
 			</p>
 		</div>
 
@@ -316,6 +330,10 @@
 						<div class="playback-options-menu-item selected" data-type="continue">Continue playback</div>
 						<div class="playback-options-menu-item" data-type="return">Return back</div>
 					</span>
+				</span>
+
+				<span class="menu-ui switch playback-record" title="Record MIDI (R)">
+					<button class="playback-record-button"><i class="fa fa-circle" aria-hidden="true"></i></button>
 				</span>
 
 				<span class="playback-time">00:00:00:000</span>
@@ -1370,10 +1388,19 @@ if (!window.electronAPI) {
 	</div>
 </template>
 
+<div class="infoSection mpeSection hidden">
+	<div class="infoPane" style="width: 300px; max-width: 92vw;">
+		<div class="close mpe-window-close">&#10006;</div>
+		<h2 class="mpe-window-title" style="margin-top: 0;">MPE</h2>
+		<div class="mpe-window-body"></div>
+	</div>
+</div>
+
 <template id="tpl-midi-device">
 	<div class="midi-device-item">
 		<span class="midi-device-name"></span>
 		<span class="midi-activity-indicator"></span>
+		<button class="midi-mpe-btn ui-choice-option" title="MPE settings for this device">MPE</button>
 		<button class="midi-remove-btn">&times;</button>
 	</div>
 </template>
